@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package sanction.v1;
+
+import "cosmos/msg/v1/msg.proto";
+import "sanction/v1/genesis.proto";
+import "sanction/v1/types.proto";
+
+option go_package = "github.com/yanagihalab/G503/x/sanction/types";
+
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  rpc RegisterAgent(MsgRegisterAgent) returns (MsgRegisterAgentResponse);
+  rpc SubmitRiskReport(MsgSubmitRiskReport) returns (MsgSubmitRiskReportResponse);
+  rpc OpenSanctionCase(MsgOpenSanctionCase) returns (MsgOpenSanctionCaseResponse);
+  rpc SubmitSanctionVote(MsgSubmitSanctionVote) returns (MsgSubmitSanctionVoteResponse);
+  rpc ExecuteSanction(MsgExecuteSanction) returns (MsgExecuteSanctionResponse);
+  rpc RevokeSanction(MsgRevokeSanction) returns (MsgRevokeSanctionResponse);
+  rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+}
+
+message MsgRegisterAgent {
+  option (cosmos.msg.v1.signer) = "authority";
+
+  string authority = 1;
+  AgentInfo agent = 2;
+}
+
+message MsgRegisterAgentResponse {}
+
+message MsgSubmitRiskReport {
+  option (cosmos.msg.v1.signer) = "submitter";
+
+  string submitter = 1;
+  RiskReport report = 2;
+}
+
+message MsgSubmitRiskReportResponse {
+  string report_id = 1;
+}
+
+message MsgOpenSanctionCase {
+  option (cosmos.msg.v1.signer) = "submitter";
+
+  string submitter = 1;
+  string case_id = 2;
+  bytes tx_hash = 3;
+  string target_address = 4;
+  SanctionTargetType target_type = 5;
+  SanctionAction requested_action = 6;
+  repeated string report_ids = 7;
+  string policy_version = 8;
+}
+
+message MsgOpenSanctionCaseResponse {
+  string case_id = 1;
+}
+
+message MsgSubmitSanctionVote {
+  option (cosmos.msg.v1.signer) = "submitter";
+
+  string submitter = 1;
+  SanctionVote vote = 2;
+}
+
+message MsgSubmitSanctionVoteResponse {
+  bool approved = 1;
+  bool rejected = 2;
+}
+
+message MsgExecuteSanction {
+  option (cosmos.msg.v1.signer) = "executor";
+
+  string executor = 1;
+  string case_id = 2;
+  string result_message = 3;
+}
+
+message MsgExecuteSanctionResponse {
+  ExecutionRecord record = 1;
+}
+
+message MsgRevokeSanction {
+  option (cosmos.msg.v1.signer) = "authority";
+
+  string authority = 1;
+  string case_id = 2;
+  string reason = 3;
+}
+
+message MsgRevokeSanctionResponse {}
+
+message MsgUpdateParams {
+  option (cosmos.msg.v1.signer) = "authority";
+
+  string authority = 1;
+  Params params = 2;
+}
+
+message MsgUpdateParamsResponse {}

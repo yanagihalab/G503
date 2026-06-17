@@ -1,0 +1,19 @@
+version: v1
+plugins:
+  - plugin: go
+    out: .
+    opt:
+      - paths=import
+      - module=github.com/yanagihalab/G503
+  - plugin: go-grpc
+    out: .
+    opt:
+      - paths=import
+      - module=github.com/yanagihalab/G503
+      - require_unimplemented_servers=false
+  - plugin: grpc-gateway
+    out: .
+    opt:
+      - paths=import
+      - module=github.com/yanagihalab/G503
+      - logtostderr=true

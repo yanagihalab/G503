@@ -1,0 +1,12 @@
+version: v1
+name: buf.build/yanagihalab/g503
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+    - SERVICE_SUFFIX
+

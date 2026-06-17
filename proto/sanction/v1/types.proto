@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package sanction.v1;
+
+option go_package = "github.com/yanagihalab/G503/x/sanction/types";
+
+message AgentInfo {
+  string agent_id = 1;
+  string validator_operator_address = 2;
+  string signer_address = 3;
+  bytes public_key = 4;
+  uint64 voting_power = 5;
+  bool active = 6;
+  string metadata_uri = 7;
+}
+
+message RiskReport {
+  string report_id = 1;
+  bytes tx_hash = 2;
+  string sender = 3;
+  string recipient = 4;
+  string denom = 5;
+  string amount = 6;
+  string source = 7;
+  string source_response_id = 8;
+  uint32 risk_score = 9;
+  repeated string risk_categories = 10;
+  string exposure_type = 11;
+  uint64 observed_height = 12;
+  uint64 expiry_height = 13;
+  string policy_version = 14;
+  bytes evidence_hash = 15;
+  bytes llm_rationale_hash = 16;
+  string submitter = 17;
+  bytes submitter_signature = 18;
+}
+
+message SanctionCase {
+  string case_id = 1;
+  bytes tx_hash = 2;
+  string target_address = 3;
+  SanctionTargetType target_type = 4;
+  SanctionAction requested_action = 5;
+  CaseStatus status = 6;
+  repeated string report_ids = 7;
+  uint64 opened_height = 8;
+  uint64 voting_deadline_height = 9;
+  uint64 executed_height = 10;
+  string policy_version = 11;
+  bytes decision_hash = 12;
+}
+
+enum SanctionTargetType {
+  SANCTION_TARGET_TYPE_UNSPECIFIED = 0;
+  SANCTION_TARGET_TYPE_TX = 1;
+  SANCTION_TARGET_TYPE_ADDRESS = 2;
+}
+
+enum SanctionAction {
+  SANCTION_ACTION_UNSPECIFIED = 0;
+  SANCTION_ACTION_WATCH = 1;
+  SANCTION_ACTION_BLOCK_TX = 2;
+  SANCTION_ACTION_FREEZE_ADDRESS = 3;
+  SANCTION_ACTION_ESCROW_FUNDS = 4;
+  SANCTION_ACTION_REVERT_TRANSFER = 5;
+}
+
+enum CaseStatus {
+  CASE_STATUS_UNSPECIFIED = 0;
+  CASE_STATUS_PENDING = 1;
+  CASE_STATUS_APPROVED = 2;
+  CASE_STATUS_REJECTED = 3;
+  CASE_STATUS_EXECUTED = 4;
+  CASE_STATUS_EXPIRED = 5;
+  CASE_STATUS_REVOKED = 6;
+}
+
+message SanctionVote {
+  string case_id = 1;
+  string agent_id = 2;
+  VoteOption option = 3;
+  SanctionAction approved_action = 4;
+  string reason_code = 5;
+  bytes rationale_hash = 6;
+  uint64 signed_height = 7;
+  bytes signature = 8;
+}
+
+enum VoteOption {
+  VOTE_OPTION_UNSPECIFIED = 0;
+  VOTE_OPTION_APPROVE = 1;
+  VOTE_OPTION_REJECT = 2;
+  VOTE_OPTION_ABSTAIN = 3;
+}
+
+message ActiveSanction {
+  string case_id = 1;
+  bytes tx_hash = 2;
+  string target_address = 3;
+  SanctionAction action = 4;
+  uint64 activated_height = 5;
+}
+
+message FreezeRecord {
+  string case_id = 1;
+  string address = 2;
+  uint64 frozen_height = 3;
+}
+
+message ExecutionRecord {
+  string case_id = 1;
+  SanctionAction action = 2;
+  bytes tx_hash = 3;
+  string target_address = 4;
+  string executor = 5;
+  uint64 executed_height = 6;
+  string result_code = 7;
+  string result_message = 8;
+  bytes state_change_hash = 9;
+}

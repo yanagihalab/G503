@@ -1,81 +1,84 @@
-# G503: Crossrefd Hysteresis Docker Experiment
+# G503: Cosmos SDK AI Sanction Chain
 
-このリポジトリは、`crossrefd` chain scaffold から切り分けた
-hysteresis signature 付き Docker 実験を管理するためのものである。
+G503 は、暗号資産の高リスク送金を抑制するための Cosmos SDK プロトタイプである。
+対象は独立した sanction chain 開発であり、次の 3 つだけを扱う。
 
-`.ignite-work/crossrefd` の本体開発と、実験用 README / Docker script の変更を
-混ぜないため、別リポジトリとして管理している。
+1. Chainalysis の address screening などを想定した異常検知。
+2. バリデータに紐付いた AI エージェントによる DAO 的な合意形成。
+3. ブロックチェーン上での transaction 承認抑制、または承認後の制裁実行。
 
 英語版は [README.md](README.md) である。
 
-## このリポジトリの役割
-
-`G503` は Crossref 5 チェーン IBC 実験の companion repository である。含まれるものは次の通りである。
-
-- 署名付き 5 チェーン Docker 実験を説明する README 更新。
-- deterministic Ed25519 hysteresis signing を有効化した
-  `docker/scripts/run-crossref-experiment.sh`。
-- deterministic test signing helper である
-  `docker/scripts/hysteresis-sign.go`。
-- `crossrefd` checkout に適用できる
-  `patches/crossrefd-hysteresis-docker.patch`。
-
-このリポジトリ単体は Cosmos SDK chain checkout ではない。`crossrefd` の Docker
-実験関連ファイルに対する overlay として扱う。
-
-## Crossrefd への適用
-
-clean な `crossrefd` checkout で次を実行する。
-
-```bash
-git apply /path/to/G503/patches/crossrefd-hysteresis-docker.patch
-```
-
-その後、`crossrefd` repository root で通常の 5 チェーン実験を実行する。
-
-```bash
-GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o ./build/crossrefd-linux-arm64 ./cmd/crossrefdd
-docker compose -f docker/docker-compose.yml up -d --build
-docker/scripts/run-crossref-experiment.sh
-```
-
-成功すると最後に次が表示される。
+## リポジトリ構成
 
 ```text
-Five-chain cross-reference experiment passed.
-```
-
-## 実験の動作
-
-この patch を適用した Docker 実験では次を行う。
-
-1. `chain-a` から `chain-e` までの deterministic Ed25519 hysteresis key を準備する。
-2. 全 5 chain 上の全 domain に `hysteresis_public_key` を登録する。
-3. source domain key で署名した checkpoint を送信する。
-4. 各 source checkpoint の ICS23 proof を取得する。
-5. 各 checkpoint を他の 4 chain へ broadcast する。
-6. destination chain が期待通り cross-reference を保存したことを検証する。
-
-目的は、local checkpoint submission と IBC packet reception の両方で
-signature-required path を通すことである。
-
-## ファイル構成
-
-```text
-README.md
-README.ja.md
-docker/
-  README.md
-  README.ja.md
+docs/
+  ai-sanction-system-design.md
+  ai-sanction-system-spec.md
+proto/
+  sanction/v1/
+x/
+  sanction/
+dev/
+  agent/
+  mock/
   scripts/
-    run-crossref-experiment.sh
-    hysteresis-sign.go
-patches/
-  crossrefd-hysteresis-docker.patch
 ```
 
-## 注意
+## 基本アイデア
 
-- signing helper は deterministic なローカル実験用であり、本番 key 管理には使わない。
-- operational key management はこの split repository の範囲外である。
-- production chain module の変更は main の `crossrefd` repository 側で管理する。
+詐欺、制裁対象、資金洗浄などに関わる可能性があるアドレスへの送金を検知した場合、
+利用者、ノード管理者、またはバリデータに紐付いた AI エージェントが risk report を
+提出する。その後、AI エージェントが watch / block / freeze / escrow / revert などの
+制裁措置について投票し、合意形成を行う。
+
+finalize 前であれば validator は proposal 処理から対象 transaction を除外する。
+承認後に制裁実行が必要な場合は、合意済みの agent decision に基づく特別な transaction
+で freeze、escrow、revert などを実行する。
+
+## On-Chain Module
+
+`x/sanction` module は次を提供する。
+
+- agent 登録;
+- risk report 提出;
+- sanction case 作成;
+- AI-agent vote 提出;
+- sanction 実行と revoke;
+- `PrepareProposal` / `ProcessProposal` で使う active transaction sanction;
+- query endpoint と genesis import/export。
+
+proto 定義は `proto/sanction/v1` に置く。
+
+## Off-Chain Development Utilities
+
+`dev/` は chain 本体ではなく、開発補助用である。
+
+- `dev/agent`: local AI-agent CLI と各種 client。
+- `dev/mock/risk-service`: Chainalysis 互換を想定した mock risk service。
+- `dev/mock/llm-service`: local LLM 説明生成の mock service。
+- `dev/scripts/evaluate-sanction-latency.sh`: latency 評価 helper。
+
+現段階では AI エージェントは中央集権的に管理する local LLM を利用する想定である。
+将来的には各 validator が独自に LLM agent を運用する分散型構成へ拡張できる。
+
+## Test
+
+```bash
+go test ./...
+```
+
+## 評価指標
+
+初期評価では次を見る。
+
+- 異常検知から agent consensus までの遅延時間。
+- finalize 前の transaction suppression 成功率。
+- approve 後の sanction execution 成功率。
+- risk policy の false positive / false negative。
+- local LLM や risk service 障害時の堅牢性。
+
+## Scope
+
+このリポジトリは研究プロトタイプである。実運用には、法的整理、validator governance、
+濫用耐性、secure key management、policy control の精査が必要である。

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package sanction.v1;
+
+import "gogoproto/gogo.proto";
+import "sanction/v1/types.proto";
+
+option go_package = "github.com/yanagihalab/G503/x/sanction/types";
+
+message Params {
+  uint32 watch_threshold = 1;
+  uint32 block_threshold = 2;
+  uint32 freeze_threshold = 3;
+  uint32 revert_threshold = 4;
+  uint32 quorum_threshold = 5;
+  bool unanimous_required_for_revert = 6;
+  uint64 evidence_ttl_blocks = 7;
+  uint64 voting_period_blocks = 8;
+  repeated string accepted_risk_sources = 9;
+  repeated string high_risk_categories = 10;
+  repeated SanctionAction allowed_actions = 11;
+}
+
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false];
+  repeated AgentInfo agents = 2 [(gogoproto.nullable) = false];
+  repeated RiskReport risk_reports = 3 [(gogoproto.nullable) = false];
+  repeated SanctionCase sanction_cases = 4 [(gogoproto.nullable) = false];
+  repeated SanctionVote sanction_votes = 5 [(gogoproto.nullable) = false];
+  repeated ActiveSanction active_sanctions = 6 [(gogoproto.nullable) = false];
+  repeated FreezeRecord frozen_addresses = 7 [(gogoproto.nullable) = false];
+  repeated ExecutionRecord execution_records = 8 [(gogoproto.nullable) = false];
+}

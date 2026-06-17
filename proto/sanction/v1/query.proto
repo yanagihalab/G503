@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package sanction.v1;
+
+import "google/api/annotations.proto";
+import "sanction/v1/genesis.proto";
+import "sanction/v1/types.proto";
+
+option go_package = "github.com/yanagihalab/G503/x/sanction/types";
+
+service Query {
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/sanction/v1/params";
+  }
+
+  rpc Agent(QueryAgentRequest) returns (QueryAgentResponse) {
+    option (google.api.http).get = "/sanction/v1/agents/{agent_id}";
+  }
+
+  rpc Agents(QueryAgentsRequest) returns (QueryAgentsResponse) {
+    option (google.api.http).get = "/sanction/v1/agents";
+  }
+
+  rpc RiskReport(QueryRiskReportRequest) returns (QueryRiskReportResponse) {
+    option (google.api.http).get = "/sanction/v1/risk_reports/{report_id}";
+  }
+
+  rpc RiskReportsByTx(QueryRiskReportsByTxRequest) returns (QueryRiskReportsByTxResponse) {
+    option (google.api.http).get = "/sanction/v1/tx/{tx_hash}/risk_reports";
+  }
+
+  rpc SanctionCase(QuerySanctionCaseRequest) returns (QuerySanctionCaseResponse) {
+    option (google.api.http).get = "/sanction/v1/cases/{case_id}";
+  }
+
+  rpc SanctionCasesByTx(QuerySanctionCasesByTxRequest) returns (QuerySanctionCasesByTxResponse) {
+    option (google.api.http).get = "/sanction/v1/tx/{tx_hash}/cases";
+  }
+
+  rpc SanctionVotes(QuerySanctionVotesRequest) returns (QuerySanctionVotesResponse) {
+    option (google.api.http).get = "/sanction/v1/cases/{case_id}/votes";
+  }
+
+  rpc ActiveTxSanction(QueryActiveTxSanctionRequest) returns (QueryActiveTxSanctionResponse) {
+    option (google.api.http).get = "/sanction/v1/tx/{tx_hash}/active";
+  }
+
+  rpc FrozenAddress(QueryFrozenAddressRequest) returns (QueryFrozenAddressResponse) {
+    option (google.api.http).get = "/sanction/v1/frozen/{address}";
+  }
+
+  rpc ExecutionRecord(QueryExecutionRecordRequest) returns (QueryExecutionRecordResponse) {
+    option (google.api.http).get = "/sanction/v1/executions/{case_id}";
+  }
+}
+
+message QueryParamsRequest {}
+
+message QueryParamsResponse {
+  Params params = 1;
+}
+
+message QueryAgentRequest {
+  string agent_id = 1;
+}
+
+message QueryAgentResponse {
+  AgentInfo agent = 1;
+}
+
+message QueryAgentsRequest {}
+
+message QueryAgentsResponse {
+  repeated AgentInfo agents = 1;
+}
+
+message QueryRiskReportRequest {
+  string report_id = 1;
+}
+
+message QueryRiskReportResponse {
+  RiskReport report = 1;
+}
+
+message QueryRiskReportsByTxRequest {
+  string tx_hash = 1;
+}
+
+message QueryRiskReportsByTxResponse {
+  repeated RiskReport reports = 1;
+}
+
+message QuerySanctionCaseRequest {
+  string case_id = 1;
+}
+
+message QuerySanctionCaseResponse {
+  SanctionCase sanction_case = 1;
+}
+
+message QuerySanctionCasesByTxRequest {
+  string tx_hash = 1;
+}
+
+message QuerySanctionCasesByTxResponse {
+  repeated SanctionCase sanction_cases = 1;
+}
+
+message QuerySanctionVotesRequest {
+  string case_id = 1;
+}
+
+message QuerySanctionVotesResponse {
+  repeated SanctionVote votes = 1;
+}
+
+message QueryActiveTxSanctionRequest {
+  string tx_hash = 1;
+}
+
+message QueryActiveTxSanctionResponse {
+  ActiveSanction sanction = 1;
+}
+
+message QueryFrozenAddressRequest {
+  string address = 1;
+}
+
+message QueryFrozenAddressResponse {
+  FreezeRecord freeze = 1;
+}
+
+message QueryExecutionRecordRequest {
+  string case_id = 1;
+}
+
+message QueryExecutionRecordResponse {
+  ExecutionRecord record = 1;
+}
