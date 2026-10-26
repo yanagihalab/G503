@@ -13,6 +13,7 @@ LOG_DIR="$HOME_DIR/logs"
 G503D_BIN="$HOME_DIR/g503d"
 RPC_URL="http://127.0.0.1:$BASE_RPC_PORT"
 API_URL="http://127.0.0.1:$BASE_API_PORT"
+export G503_RPC_STATE_DIR="$HOME_DIR/operator-rpc-state"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "jq is required" >&2

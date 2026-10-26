@@ -56,6 +56,7 @@ func TestPendingBatchScreensAllTransfersAndSelectsBlockingRisk(t *testing.T) {
 }
 
 func TestWatchBroadcastAdvancesSequenceAndRefreshesEvidenceHeight(t *testing.T) {
+	t.Setenv("G503_RPC_STATE_DIR", t.TempDir()+"/rpc")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	previous := http.DefaultTransport
@@ -85,8 +86,10 @@ func TestWatchBroadcastAdvancesSequenceAndRefreshesEvidenceHeight(t *testing.T) 
 				} `json:"params"`
 			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&rpc))
-			if rpc.Method == "status" {
-				value = map[string]any{"jsonrpc": "2.0", "id": rpc.ID, "result": map[string]any{"sync_info": map[string]string{"latest_block_height": "150"}}}
+			if metadata := safetyMetadata(rpc.Method, "watch-test"); metadata != nil {
+				value = map[string]any{"jsonrpc": "2.0", "id": rpc.ID, "result": metadata}
+			} else if rpc.Method == "unconfirmed_txs" {
+				value = map[string]any{"jsonrpc": "2.0", "id": rpc.ID, "result": map[string]any{"txs": transfers}}
 			} else {
 				require.Equal(t, "broadcast_tx_sync", rpc.Method)
 				encoded, err := base64.StdEncoding.DecodeString(rpc.Params.Tx)
@@ -121,6 +124,7 @@ func TestWatchBroadcastAdvancesSequenceAndRefreshesEvidenceHeight(t *testing.T) 
 func (f transportFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestAgentDecisionBuildsSignedMessagesAndFailsClosed(t *testing.T) {
+	t.Setenv("G503_RPC_STATE_DIR", t.TempDir()+"/rpc")
 	for _, scenario := range []string{"approve", "policy-mismatch", "partial-evidence", "wrong-agent", "inconsistent-vote"} {
 		t.Run(scenario, func(t *testing.T) {
 			broadcasts := 0
@@ -148,14 +152,19 @@ func TestAgentDecisionBuildsSignedMessagesAndFailsClosed(t *testing.T) {
 				case "llm.test":
 					value = map[string]string{"rationale": "local explanation"}
 				case "rpc.test":
-					broadcasts++
 					var request struct {
 						ID     uint64 `json:"id"`
+						Method string `json:"method"`
 						Params struct {
 							Tx string `json:"tx"`
 						} `json:"params"`
 					}
 					require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+					if metadata := safetyMetadata(request.Method, "test-chain"); metadata != nil {
+						value = map[string]any{"jsonrpc": "2.0", "id": request.ID, "result": metadata}
+						break
+					}
+					broadcasts++
 					txBytes, err := base64.StdEncoding.DecodeString(request.Params.Tx)
 					require.NoError(t, err)
 					tx, err := app.MakeEncodingConfig().TxConfig.TxDecoder()(txBytes)
@@ -186,5 +195,19 @@ func TestAgentDecisionBuildsSignedMessagesAndFailsClosed(t *testing.T) {
 			require.NotEmpty(t, result.RiskReport.SubmitterSignature)
 			require.NotEmpty(t, result.Vote.Signature)
 		})
+	}
+}
+
+func safetyMetadata(method, chain string) any {
+	hash := strings.Repeat("AB", 32)
+	switch method {
+	case "status":
+		return map[string]any{"node_info": map[string]string{"network": chain}, "sync_info": map[string]any{"latest_block_height": "150", "latest_block_hash": hash, "latest_block_time": time.Now(), "catching_up": false}}
+	case "genesis":
+		return map[string]any{"genesis": map[string]any{"chain_id": chain, "genesis_time": "2026-10-26T00:00:00Z", "app_state": map[string]any{}}}
+	case "block":
+		return map[string]any{"block_id": map[string]string{"hash": hash}, "block": map[string]any{"header": map[string]any{"chain_id": chain, "height": "150", "time": time.Now()}}}
+	default:
+		return nil
 	}
 }

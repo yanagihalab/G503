@@ -122,6 +122,7 @@ run_five_agent_scenario() {
   for i in 1 2 3 4 5; do
     endpoints="$(jq --arg url "http://127.0.0.1:$((BASE_RPC_PORT+i-1))" '. + [$url]' <<<"$endpoints")"
   done
+  export G503_OPERATOR_RPC_ENDPOINTS="$(jq -r 'join(",")' <<<"$endpoints")"
   for i in 1 2 3 4 5; do
     jq --argjson endpoints "$endpoints" '.rpc_endpoints=$endpoints | .rpc_safety={min_agreement:3,max_block_age_seconds:15,max_height_lag:2}' \
       "$HOME_DIR/agent$i.json" >"$HOME_DIR/agent$i.pool.json"
@@ -163,6 +164,10 @@ run_five_agent_scenario() {
   done
   start_node 1 "$LOG_DIR/node1-rpc-restart.log"
   wait_http "$primary_api/sanction/v1/params" 90
+  echo "[compound] SIGKILL controller after accepted send; resume and reconcile without a second send"
+  G503_SAFETY_HOME="$HOME_DIR" G503_SAFETY_RPC="$RPC_URL" G503_SAFETY_API="$API_URL" G503_CHAIN_ID="$CHAIN_ID" \
+    G503_COMPOUND_RPC_ENDPOINTS="$(jq -r 'join(",")' <<<"$endpoints")" GOCACHE="$GOCACHE_DIR" \
+    go test -p 2 -count=1 -v ./dev/agent/e2e -run '^TestCompoundControllerRecovery$' | tee "$LOG_DIR/compound-controller-test.log"
   sleep 3
   stop_auto_agents TERM
   for i in 1 2 3 4 5; do

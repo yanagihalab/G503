@@ -18,6 +18,7 @@ GOCACHE_DIR="${GOCACHE:-$ROOT_DIR/../../.gocache}"
 LOG_DIR="$HOME_DIR/logs"
 METRICS_JSON="$LOG_DIR/metrics.json"
 BIN_DIR="$HOME_DIR/bin"
+export G503_RPC_STATE_DIR="$HOME_DIR/operator-rpc-state"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "jq is required" >&2
@@ -327,7 +328,7 @@ revert_end_ns="$(date +%s%N)"
 
 echo "[8/12] start watch-mode agent and verify pending tx decode"
 watch_log="$LOG_DIR/watch-agent.jsonl"
-"$BIN_DIR/sanction-agent" -rpc-url "$RPC_URL" -agent-id validator-5 \
+"$BIN_DIR/sanction-agent" -rpc-url "$RPC_URL" -chain-id "$CHAIN_ID" -agent-id validator-5 \
   -watch \
   -risk-url "$RISK_BLOCK_URL" \
   -llm-url "$LLM_URL" \

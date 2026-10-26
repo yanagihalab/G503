@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HOME_DIR="${G503_HOME:-/private/tmp/g503-e2e-demo}"
+export G503_RPC_STATE_DIR="$HOME_DIR/operator-rpc-state"
 CHAIN_ID="${G503_CHAIN_ID:-g503-local-1}"
 RPC_LADDR="${G503_RPC_LADDR:-tcp://127.0.0.1:26657}"
 RPC_URL="${G503_RPC_URL:-http://127.0.0.1:26657}"

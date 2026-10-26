@@ -26,6 +26,7 @@ type Client struct {
 	Endpoint   string
 	HTTPClient *http.Client
 	OnError    func(error)
+	Fetch      func(context.Context, int) ([]PendingTx, error)
 }
 
 type PendingTx struct {
@@ -43,6 +44,9 @@ func New(endpoint string, timeout time.Duration) Client {
 }
 
 func (c Client) UnconfirmedTxs(ctx context.Context, limit int) ([]PendingTx, error) {
+	if c.Fetch != nil {
+		return c.Fetch(ctx, limit)
+	}
 	if limit <= 0 {
 		limit = 100
 	}

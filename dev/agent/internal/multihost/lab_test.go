@@ -91,10 +91,15 @@ type fakeTransport struct {
 	duplicateMachineID bool
 	failProvision      bool
 	failCleanup        bool
+	interruptAction    string
 }
 
 func (f *fakeTransport) Run(_ context.Context, h Host, script string) ([]byte, error) {
 	f.scripts = append(f.scripts, script)
+	if f.interruptAction != "" && strings.Contains(script, "'"+f.interruptAction+"'") {
+		f.interruptAction = ""
+		return nil, fmt.Errorf("simulated controller connection interruption")
+	}
 	if strings.Contains(script, "cat /etc/machine-id") {
 		if f.duplicateMachineID {
 			return []byte("same-machine"), nil
@@ -113,7 +118,7 @@ func (f *fakeTransport) Run(_ context.Context, h Host, script string) ([]byte, e
 	if strings.HasSuffix(script, "'node-id'\n") {
 		return []byte(fmt.Sprintf("%040d", int(h.ID[4]-'0'))), nil
 	}
-	if strings.HasSuffix(script, "'transfer'\n") {
+	if strings.Contains(script, "'transfer'") {
 		return []byte(`{"tx_hash":"` + strings.Repeat("A", 64) + `"}`), nil
 	}
 	if strings.Contains(script, "'block-hash'") {
@@ -132,6 +137,8 @@ func (f *fakeTransport) Run(_ context.Context, h Host, script string) ([]byte, e
 			if f.stateReads > 10 {
 				height++
 			}
+		case "3-2-resumed":
+			height = 201
 		}
 		return []byte(fmt.Sprintf(`{"status":{"result":{"sync_info":{"latest_block_height":"%d"}}},"sends":10}`, height)), nil
 	}
@@ -183,7 +190,7 @@ func TestControllerFailuresNeverReportSuccess(t *testing.T) {
 		r := testRunner(t, f)
 		summary, err := r.Execute(context.Background())
 		require.Error(t, err)
-		require.Equal(t, "failed", summary.Status)
+		require.Equal(t, "interrupted", summary.Status)
 		require.NotEmpty(t, summary.Error)
 		if f.duplicateMachineID {
 			require.NotContains(t, strings.Join(f.scripts, "\n"), "git clone")
@@ -192,6 +199,29 @@ func TestControllerFailuresNeverReportSuccess(t *testing.T) {
 			require.False(t, summary.CleanupSucceeded)
 		}
 	}
+}
+
+func TestControllerResumeAndExplicitCleanup(t *testing.T) {
+	f := &fakeTransport{interruptAction: "stop-node"}
+	r := testRunner(t, f)
+	summary, err := r.Execute(context.Background())
+	require.Error(t, err)
+	require.Equal(t, "interrupted", summary.Status)
+	owner := r.owner
+	before := strings.Count(strings.Join(f.scripts, "\n"), "'transfer'")
+	r.Resume = true
+	summary, err = r.Execute(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "passed", summary.Status)
+	require.Equal(t, owner, r.owner)
+	require.Equal(t, before+1, strings.Count(strings.Join(f.scripts, "\n"), "'transfer'"), "completed transfers must be skipped on resume")
+	r.CleanupOnly = true
+	summary, err = r.Execute(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "cleaned", summary.Status)
+	r.CleanupOnly = false
+	_, err = r.Execute(context.Background())
+	require.ErrorContains(t, err, "cleaned")
 }
 
 func TestWorkerRejectsOldControllerBeforeAnyAction(t *testing.T) {
@@ -215,6 +245,7 @@ func TestWorkerScopesFirewallAndCollectsOnlyLogs(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(root, "secret.json"), []byte("NEVER COLLECT THIS"), 0600))
 	logPath := filepath.Join(root, "firewall.log")
 	require.NoError(t, os.WriteFile(filepath.Join(helpers, "sudo"), []byte("#!/bin/bash\nprintf '%s\\n' \"$*\" >>\"$FAKE_LOG\"\n"), 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(helpers, "flock"), []byte("#!/bin/bash\nexit 0\n"), 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(helpers, "sha256sum"), []byte("#!/bin/bash\ncat >/dev/null\nprintf '%064d  -\\n' 1\n"), 0700))
 	worker := filepath.Join("..", "..", "..", "scripts", "multihost-worker.sh")
 	run := func(action string, args ...string) []byte {

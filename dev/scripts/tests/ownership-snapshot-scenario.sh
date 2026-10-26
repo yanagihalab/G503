@@ -31,13 +31,15 @@ run_ownership_snapshot_scenario() {
   pids+=("$!")
   wait_http "http://$api/healthz" 30
   export G503_AGENT_API_TOKEN=ownership-test
+  local rpc_endpoints='[]'
+  for i in 1 2 3 4 5; do rpc_endpoints="$(jq --arg rpc "http://127.0.0.1:$((BASE_RPC_PORT+i-1))" '.+[$rpc]' <<<"$rpc_endpoints")"; done
   for i in 1 2 3 4 5; do
     jq -r '.validator.private_key_hex' "$HOME_DIR/node$i/config/demo-keys.json" >"$HOME_DIR/agent$i.key"
     local address="$(jq -r '.validator.address' "$HOME_DIR/node$i/config/demo-keys.json")"
     local id="$(curl -fsS "$API_URL/sanction/v1/agents" | jq -r --arg a "$address" '.agents[] | select(.signer_address==$a) | .agent_id')"
-    jq -n --arg chain "$CHAIN_ID" --arg rpc "$RPC_URL" --arg risk "http://$risk" --arg llm "http://$llm" \
+    jq -n --argjson endpoints "$rpc_endpoints" --arg chain "$CHAIN_ID" --arg rpc "$RPC_URL" --arg risk "http://$risk" --arg llm "http://$llm" \
       --arg api "http://$api" --arg id "$id" --arg key "$HOME_DIR/agent$i.key" --arg state "$HOME_DIR/agent$i-host-a" \
-      '{chain_id:$chain,rpc_url:$rpc,risk_provider:"mock",risk_url:$risk,llm_provider:"mock",llm_url:$llm,
+      '{chain_id:$chain,rpc_url:$rpc,rpc_endpoints:$endpoints,rpc_safety:{min_agreement:3,max_height_lag:2},risk_provider:"mock",risk_url:$risk,llm_provider:"mock",llm_url:$llm,
         agent_id:$id,key_file:$key,agent_api:{url:$api,token_env:"G503_AGENT_API_TOKEN",role:"validator-agent"},
         broadcast:{gas:700000,fee:"0stake"},daemon:{enabled:true,state_dir:$state}}' >"$HOME_DIR/agent$i.json"
   done
@@ -88,6 +90,13 @@ run_ownership_snapshot_scenario() {
   wait_agent_state "$node3_valoper" false 0 "$LOG_DIR/ownership-after-unbond.json"
   ownership_phase changed
 
+  echo "[compound] stop primary RPC while restoring old-case voters after add/jail/unbond"
+  local primary_rpc="$RPC_URL" primary_api="$API_URL"
+  kill "${node_pids[1]}"; wait "${node_pids[1]}" 2>/dev/null || true
+  RPC_URL="http://127.0.0.1:$((BASE_RPC_PORT+1))"
+  API_URL="http://127.0.0.1:$((BASE_API_PORT+1))"
+  export G503_SAFETY_RPC="$RPC_URL" G503_SAFETY_API="$API_URL"
+
   echo "[ownership 6/9] restore five journals to independent host-B paths and acquire new epochs"
   for i in 1 2 3 4 5; do
     local info="$LOG_DIR/backup-agent$i-ownership.json"
@@ -120,6 +129,11 @@ run_ownership_snapshot_scenario() {
   grep -q 'already owned' "$LOG_DIR/ownership-old-restart.err"
   stop_auto_agents TERM
 
+  start_node 1 "$LOG_DIR/ownership-primary-rpc-return.log"
+  RPC_URL="$primary_rpc"; API_URL="$primary_api"
+  export G503_SAFETY_RPC="$RPC_URL" G503_SAFETY_API="$API_URL"
+  wait_http "$RPC_URL/status" 90
+
   echo "[ownership 8/9] restart every node and check persisted epochs, snapshots and settlement"
   for i in 1 2 3 4 5 6; do kill "${node_pids[$i]}" 2>/dev/null || true; done
   for i in 1 2 3 4 5 6; do wait "${node_pids[$i]}" 2>/dev/null || true; done
@@ -131,6 +145,8 @@ run_ownership_snapshot_scenario() {
       '.record.result_code=="ok"' "$LOG_DIR/ownership-node$i-persisted-execution.json" 90
   done
   ownership_phase final
+  jq '. + {rpc_outage_during_churn_and_takeover:true,rpc_pool_endpoints:5,rpc_min_agreement:3}' "$LOG_DIR/ownership-metrics.json" >"$LOG_DIR/ownership-metrics.tmp"
+  mv "$LOG_DIR/ownership-metrics.tmp" "$LOG_DIR/ownership-metrics.json"
   echo "[ownership 9/9] verified duplicate startup rejection, old-host fencing and fixed voting"
   cat "$LOG_DIR/ownership-metrics.json"
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,7 @@ import (
 	"github.com/yanagihalab/G503/dev/agent/internal/llmclient"
 	"github.com/yanagihalab/G503/dev/agent/internal/policy"
 	"github.com/yanagihalab/G503/dev/agent/internal/riskclient"
+	"github.com/yanagihalab/G503/dev/agent/internal/rpcguard"
 	"github.com/yanagihalab/G503/dev/agent/internal/signer"
 	"github.com/yanagihalab/G503/dev/agent/internal/txmanager"
 	"github.com/yanagihalab/G503/dev/agent/internal/watcher"
@@ -91,6 +93,8 @@ func main() {
 		rpcMaxLag       = flag.Uint64("rpc-max-height-lag", 2, "maximum endpoint height lag from the freshest eligible RPC")
 		rpcAgreement    = flag.Int("rpc-min-agreement", 0, "matching RPC responses required; zero uses strict majority of configured endpoints")
 		rpcProbeTimeout = flag.Duration("rpc-probe-timeout", 3*time.Second, "timeout for each RPC safety probe")
+		rpcStateDir     = flag.String("rpc-state-dir", "", "private checkpoint directory for one-shot/watch clients")
+		requestID       = flag.String("request-id", "", "stable idempotency ID for a one-shot operation")
 		execute         = flag.Bool("execute", false, "append MsgExecuteSanction after voting; useful for single-agent PoC")
 		voteOnly        = flag.Bool("vote-only", false, "broadcast only MsgSubmitSanctionVote for an existing case")
 		executeOnly     = flag.Bool("execute-only", false, "broadcast only MsgExecuteSanction for an approved case")
@@ -265,6 +269,7 @@ func main() {
 	}
 
 	opts := processOptions{
+		rpcStateDir: *rpcStateDir, requestID: *requestID,
 		rpcEndpoints: splitCSV(*rpcEndpoints),
 		rpcSafety:    chainclient.RPCSafety{ChainID: *chainID, MaxBlockAge: *rpcMaxAge, MaxFutureSkew: *rpcFutureSkew, MaxHeightLag: *rpcMaxLag, MinAgreement: *rpcAgreement, ProbeTimeout: *rpcProbeTimeout},
 		leaseTTL:     *leaseTTL,
@@ -397,7 +402,25 @@ func runWatch(ctx context.Context, opts processOptions, interval time.Duration, 
 	enc := json.NewEncoder(writer)
 	client := watcher.New(opts.rpcURL, 10*time.Second)
 	client.OnError = func(err error) { log.Printf("watch retry: %v", err) }
-	rpc := chainclient.New(opts.rpcURL, 10*time.Second)
+	guard, err := openCommandRPC(opts)
+	if err != nil {
+		return err
+	}
+	defer guard.Close()
+	opts.rpcSession = guard
+	rpc := guard.Client
+	client.Fetch = func(ctx context.Context, limit int) ([]watcher.PendingTx, error) {
+		if _, err := rpc.Status(ctx); err != nil {
+			return nil, err
+		}
+		txs, err := rpc.PendingTransactions(ctx, limit)
+		pending := make([]watcher.PendingTx, 0, len(txs))
+		for _, tx := range txs {
+			sum := sha256.Sum256(tx)
+			pending = append(pending, watcher.PendingTx{Bytes: tx, Hash: hex.EncodeToString(sum[:])})
+		}
+		return pending, err
+	}
 	return client.PollUnconfirmed(ctx, interval, limit, func(ctx context.Context, pending watcher.PendingTx) error {
 		transfers, err := watcher.DecodeTransfers(pending)
 		if err != nil || len(transfers) == 0 {
@@ -512,7 +535,7 @@ func broadcastControlTx(ctx context.Context, opts processOptions, voteOnly bool,
 	if err != nil {
 		return broadcastOutput{}, err
 	}
-	result, err := chainclient.New(opts.rpcURL, 10*time.Second).BroadcastSignedMsgs(ctx, chainclient.SignOptions{
+	result, err := sendCommand(ctx, opts, chainclient.SignOptions{
 		ChainID:       opts.chainID,
 		PrivateKeyHex: opts.privKeyHex,
 		AccountNumber: opts.accountNumber,
@@ -643,6 +666,9 @@ func splitCSV(value string) []string {
 }
 
 type processOptions struct {
+	rpcStateDir    string
+	requestID      string
+	rpcSession     *rpcguard.Session
 	rpcEndpoints   []string
 	rpcSafety      chainclient.RPCSafety
 	leaseTTL       uint64
@@ -958,7 +984,7 @@ func broadcastMessages(
 	if err != nil {
 		return broadcastOutput{}, err
 	}
-	result, err := chainclient.New(opts.rpcURL, 10*time.Second).BroadcastSignedMsgs(ctx, chainclient.SignOptions{
+	result, err := sendCommand(ctx, opts, chainclient.SignOptions{
 		ChainID:       opts.chainID,
 		PrivateKeyHex: opts.privKeyHex,
 		AccountNumber: opts.accountNumber,
@@ -970,6 +996,31 @@ func broadcastMessages(
 		return broadcastOutput{}, err
 	}
 	return broadcastOutput{Messages: names, Result: result}, nil
+}
+
+func openCommandRPC(opts processOptions) (*rpcguard.Session, error) {
+	namespace := "watch-" + opts.agentID
+	if opts.privKeyHex != "" {
+		s, err := signer.New(opts.agentID, opts.privKeyHex)
+		if err != nil {
+			return nil, err
+		}
+		namespace = s.Address
+	}
+	return rpcguard.Open(opts.chainID, opts.rpcURL, rpcguard.Options{Endpoints: strings.Join(opts.rpcEndpoints, ","), StateDir: opts.rpcStateDir, Namespace: namespace, Policy: opts.rpcSafety})
+}
+
+func sendCommand(ctx context.Context, opts processOptions, signOptions chainclient.SignOptions, msgs ...sdk.Msg) (chainclient.BroadcastResult, error) {
+	guard := opts.rpcSession
+	if guard == nil {
+		var err error
+		guard, err = openCommandRPC(opts)
+		if err != nil {
+			return chainclient.BroadcastResult{}, err
+		}
+		defer guard.Close()
+	}
+	return guard.Send(ctx, opts.requestID, signOptions, msgs...)
 }
 
 func parseTargetType(name string) (sanctiontypes.SanctionTargetType, error) {

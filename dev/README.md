@@ -282,7 +282,8 @@ Resident daemons accept `rpc_endpoints` and `rpc_safety` in their existing JSON
 config. They validate fresh, nonsyncing, continuous common history before lease
 or business broadcasts and persist `meta/rpc_checkpoint`. Quorum does not shrink
 on endpoint failure; an ambiguous send is reconciled by the journal, not blindly
-replayed to another RPC. Legacy one-shot/watch clients remain single-RPC.
+replayed to another RPC. One-shot/watch and operator clients now also use guarded
+RPCs, with private signer-scoped checkpoints and optional durable request IDs.
 See the root README for default bounds and CLI flags. RPC agreement is not
 cryptographic light-client verification.
 
@@ -296,3 +297,11 @@ inventory, 4:1 / 3:2 partitions, all-node restart, convergence and scoped cleanu
 The default `g503-multihost` CLI only plans; real hosts remain unverified until
 an explicit executed run with valid host details succeeds. Go tests use simulated
 SSH/firewall commands and do not claim real-host success.
+
+The controller persists pending/completed steps in `controller.db` and resumes
+with `-execute -resume -results SAME_DIR`. Interruptions retain resources; use
+`-execute -resume -cleanup` to tear them down. Keep the journal private: it
+contains the experiment owner nonce. The five-agent suite adds real-transfer
+controller SIGKILL/reconciliation, guarded operator review/revoke, and RPC
+outage during ownership takeover plus validator churn. See the root README
+and five-host runbook for exact guarantees and recovery boundaries.

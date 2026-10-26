@@ -18,7 +18,7 @@ import (
 
 	"github.com/yanagihalab/G503/app"
 	"github.com/yanagihalab/G503/dev/agent/internal/chainclient"
-	"github.com/yanagihalab/G503/dev/agent/internal/watcher"
+	"github.com/yanagihalab/G503/dev/agent/internal/rpcguard"
 )
 
 type output struct {
@@ -36,6 +36,8 @@ type output struct {
 
 func main() {
 	initSDKConfig()
+	var guardOptions rpcguard.Options
+	guardOptions.Flags(flag.CommandLine)
 	var (
 		rpcURL        = flag.String("rpc-url", "http://127.0.0.1:26657", "CometBFT RPC URL")
 		chainID       = flag.String("chain-id", "g503-local-1", "chain ID used for signing")
@@ -107,13 +109,19 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	result, err := chainclient.New(*rpcURL, 10*time.Second).BroadcastTxSync(ctx, txBytes)
+	guardOptions.Namespace = sender
+	guard, err := rpcguard.Open(*chainID, *rpcURL, guardOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer guard.Close()
+	result, err := guard.Send(ctx, guardOptions.RequestID, signOpts, msg)
 	if err != nil {
 		log.Fatal(err)
 	}
 	seen := false
 	if *checkMempool {
-		seen, err = waitForMempool(ctx, *rpcURL, result.Hash)
+		seen, err = waitForGuardedMempool(ctx, guard.Client, result.Hash)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -125,7 +133,7 @@ func main() {
 		Amount:      coins.String(),
 		Account:     *accountNumber,
 		Sequence:    *sequence,
-		TxHash:      txHash,
+		TxHash:      result.Hash,
 		Broadcast:   &result,
 		MempoolSeen: seen,
 	})
@@ -152,18 +160,24 @@ func addressFromPrivateKeyHex(privateKeyHex string) (string, error) {
 }
 
 func waitForMempool(ctx context.Context, rpcURL string, hash string) (bool, error) {
-	client := watcher.New(rpcURL, 5*time.Second)
+	return waitForGuardedMempool(ctx, chainclient.New(rpcURL, 5*time.Second), hash)
+}
+
+func waitForGuardedMempool(ctx context.Context, client *chainclient.Client, hash string) (bool, error) {
 	deadline := time.NewTimer(8 * time.Second)
 	defer deadline.Stop()
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		txs, err := client.UnconfirmedTxs(ctx, 100)
+		if _, err := client.Status(ctx); err != nil {
+			return false, err
+		}
+		txs, err := client.PendingTransactions(ctx, 100)
 		if err != nil {
 			return false, err
 		}
 		for _, pending := range txs {
-			if strings.EqualFold(pending.Hash, hash) {
+			if strings.EqualFold(hex.EncodeToString(tmhash.Sum(pending)), hash) {
 				return true, nil
 			}
 		}

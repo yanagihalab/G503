@@ -10,7 +10,8 @@ available; five local processes are not equivalent to this experiment.
 
 - Five dedicated Linux hosts with unique `/etc/machine-id`, distinct IPv4 peer
   addresses, Bash, Git, Go matching `go.mod`, curl, jq, Perl, tar, sha256sum and
-  `ss` (iproute2). Preflight refuses occupied service ports, including local gRPC 9090.
+  `ss` (iproute2), `flock` (util-linux) and `sync` (coreutils). Preflight refuses
+  occupied service ports, including local gRPC 9090.
 - Noninteractive SSH access with host keys already verified in `known_hosts`.
   Agent forwarding and host-key verification bypasses are not used.
 - The SSH user must have `sudo -n iptables` permission for fault injection.
@@ -41,12 +42,25 @@ go run ./dev/agent/cmd/g503-multihost \
 go run ./dev/agent/cmd/g503-multihost \
   -inventory /path/to/five-hosts.json -revision "$(git rev-parse HEAD)" \
   -execute -results /path/to/new-results -timeout 90m
+
+# Same inventory, pinned SHA and private results directory after interruption.
+go run ./dev/agent/cmd/g503-multihost \
+  -inventory /path/to/five-hosts.json -revision PINNED_COMMIT_SHA \
+  -execute -resume -results /path/to/new-results
+
+# Abort an interrupted experiment and recover only its owned resources.
+go run ./dev/agent/cmd/g503-multihost \
+  -inventory /path/to/five-hosts.json -revision PINNED_COMMIT_SHA \
+  -execute -resume -cleanup -results /path/to/new-results
 ```
 
-The local results directory and `<remote_base>/<run_id>` must not already exist.
-No existing checkout or journal is overwritten. Each invocation uses a random
-ownership marker, so an old controller cannot clean up a newer run with the
-same path. Generated keys and API token remain mode `0600` on remote hosts.
+Fresh execution requires new local/remote directories. Resume requires the
+existing private `controller.db` and identical inventory/revision. Its OS lock
+rejects a second live controller. A random owner is durably saved once and
+retained across resumes; other owners are never adopted. Completed steps are
+skipped; interrupted callbacks keep their original operation IDs. Transfers
+preserve signed bytes through the guarded send CLI after a lost SSH reply.
+Generated keys and API token remain mode `0600` on remote hosts.
 Only generated demonstration accounts are used; the send helper exposes a demo
 key in its remote process arguments. Never substitute funded production keys.
 HTTP mock API traffic is private-lab-only, not an mTLS deployment.
@@ -81,10 +95,23 @@ result and whether actual SSH transport ran. `*-logs.tar.gz` contains remote
 `logs/` only, not keys, tokens, config or journals. A simulated controller run
 never sets `real_hosts_executed` to true. `planned` is not a successful E2E.
 
-Cleanup runs on errors and catchable interrupt/termination, with a separate
-bounded context. Controller SIGKILL, machine loss or an unreachable SSH service
-cannot guarantee automatic cleanup. Once reachable, use the original remote
-ownership marker for manual recovery on each host:
+Successful execution cleans up owned resources before reporting `passed`.
+Errors, catchable interruptions and SIGKILL retain resources for explicit resume
+or cleanup; a failed run is `interrupted`. Partitions may remain active, but SSH
+ports are not blocked. Use the commands above once hosts are reachable. Cleanup
+retries remain possible after partial failure and attempt every owned process
+even when firewall cleanup fails. A fully `cleaned` run is terminal.
+
+`controller.db` contains the private owner nonce (also used to derive the mock
+API token), not signing keys. Preserve it outside public CI artifacts. Do not
+copy a live DB: stop the controller before backing up its local result directory.
+Controller recovery is single-owner/local-journal recovery, not distributed
+controller HA. Never run independent copies of this journal concurrently on
+different hosts; the OS lock is not a cross-host fencing service. Agent signing
+ownership is separately fenced on-chain.
+
+If the controller journal is lost, use the original remote ownership marker
+for manual recovery on each host:
 
 ```bash
 root=/var/tmp/g503-lab/YOUR_RUN_ID
@@ -95,8 +122,9 @@ bash "$root/source/dev/scripts/multihost-worker.sh" \
 
 Inspect results before manually removing experiment directories. Cleanup retains
 data; it never deletes the remote root. Use a new run ID for the next run.
-If provisioning failed before the worker was downloaded, inspect the owned root
-manually; no global cleanup command is provided. Do not run `iptables -F` or
+If provisioning failed before worker download or left `node.init`, inspect the
+owned root manually. Resume refuses to replace partial keys or adopt unmarked
+directories. No global cleanup command is provided. Do not run `iptables -F` or
 `killall` as a workaround. SSH failures and incomplete cleanup fail the run.
 
 ## Verification Boundary
@@ -104,6 +132,9 @@ manually; no global cleanup command is provided. Do not run `iptables -F` or
 Automated tests cover inventory validation, plan-only behavior, simulated
 4:1/3:2/restart orchestration, error cleanup, ownership refusal, firewall command
 scope and key-free log archives. Local five-validator/five-agent tests exercise
-actual chain processes and preferred-RPC failover. Five real SSH hosts have not
+actual chain processes, preferred-RPC failover, controller SIGKILL/reconciliation,
+guarded review/revoke and RPC outage during validator churn and ownership
+takeover. Replay safety assumes retained data and trustworthy SSH hosts; this
+does not migrate signing keys between real hosts. Five real SSH hosts have not
 been exercised until valid host inventory is supplied and an executed summary
 and logs are inspected. CI intentionally performs no credentialed SSH mutation.

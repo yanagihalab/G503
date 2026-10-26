@@ -18,6 +18,8 @@ func main() {
 	revision := flag.String("revision", "", "override with the full pushed commit SHA")
 	results := flag.String("results", "", "new local result directory (required with -execute)")
 	execute := flag.Bool("execute", false, "explicitly provision five hosts and inject scoped firewall faults")
+	resume := flag.Bool("resume", false, "resume the same private controller journal and immutable inventory")
+	cleanup := flag.Bool("cleanup", false, "recover owned resources only; requires -execute -resume")
 	duration := flag.Duration("timeout", 90*time.Minute, "overall execution deadline including fresh remote builds")
 	flag.Parse()
 	inventory, err := multihost.Load(*path)
@@ -27,7 +29,10 @@ func main() {
 	if *revision != "" {
 		inventory.Revision = *revision
 	}
-	runner := &multihost.Runner{Inventory: inventory, ResultDir: *results, Transport: multihost.SSHTransport{}, Progress: func(p string) { fmt.Fprintln(os.Stderr, p) }}
+	if (*resume || *cleanup) && !*execute {
+		fail(fmt.Errorf("resume/cleanup require -execute"))
+	}
+	runner := &multihost.Runner{Inventory: inventory, ResultDir: *results, Resume: *resume, CleanupOnly: *cleanup, Transport: multihost.SSHTransport{}, Progress: func(p string) { fmt.Fprintln(os.Stderr, p) }}
 	var summary multihost.Summary
 	if *execute {
 		if *results == "" || *duration <= 0 {

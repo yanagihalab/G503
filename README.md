@@ -199,7 +199,8 @@ Unanimous revert waits for every voter frozen into that case's snapshot; executo
 relaxes the on-chain signature requirement.
 Pending `-target-type tx` suppression is best effort and cannot undo a tx that
 has already finalized; use the explicit address-target compensation workflow
-for this demo. Legacy `-watch` behavior remains unchanged.
+for this demo. Legacy `-watch` retains its non-durable workflow; its RPC access
+is now guarded as described below.
 
 ```bash
 bash dev/scripts/run-five-agent-e2e.sh
@@ -750,9 +751,8 @@ production-service or successful GitHub CI execution claims.
 ### Fresh RPCs and Durable History Checkpoints
 
 Resident `-daemon` agents now use a guarded RPC pool for pinned chain reads,
-pending-tx polling, ownership leases and signed broadcasts. Legacy one-shot and
-`-watch` commands still use their single configured RPC; this is not a global
-change to every CLI client.
+pending-tx polling, ownership leases and signed broadcasts. The operator-client
+addition below now extends these checks to signing CLIs and watch polling too.
 
 ```json
 {
@@ -818,6 +818,56 @@ The verified pre-change checkpoint was pushed as `3243c82`; both GitHub CI jobs
 passed in [run 40266240640](https://github.com/yanagihalab/G503/actions/runs/40266240640).
 This supersedes the earlier statement that GitHub CI was unconfirmed; it does
 not claim that a real five-host experiment passed.
+
+### Controller Recovery and Operator RPC Protection
+
+`g503-ops review-sanction` / `revoke-sanction`, `g503-send`, `g503-validator`,
+and one-shot/watch `sanction-agent` now use guarded RPCs with persistent common
+block/genesis checkpoints. Watch polling uses the same selected client. Set the
+correct chain ID even for read-only watch. Offline dry-runs do not contact RPC.
+
+Operator/send/validator commands accept `-rpc-endpoints`, `-rpc-min-agreement`,
+`-rpc-max-block-age`, `-rpc-max-future-skew`, `-rpc-max-height-lag`,
+`-rpc-probe-timeout`, `-rpc-genesis-hash`, `-rpc-state-dir`, and `-request-id`.
+Agent commands retain their existing RPC policy flags and add `-rpc-state-dir`
+and `-request-id` for non-daemon commands.
+
+State defaults to `G503_RPC_STATE_DIR` or `~/.local/state/g503/rpc`. The directory
+must be private (`0700`); databases are `0600`, scoped to chain ID and signer,
+and exclusively locked. Reused chain IDs in independent experiments need
+separate directories. Never delete a checkpoint to accept an unexplained reset.
+
+An explicit request ID saves signed bytes before I/O. Repeating it reconciles
+the original hash even if the supplied sequence has changed. Changed messages,
+signers, fee, gas or memo are rejected. An unknown lookup or a consumed sequence
+without an indexed result stops recovery, not re-signing. When sequence still
+matches, only identical bytes may be retransmitted. Without a request ID, CLI
+sends are guarded but not durably idempotent. Legacy watch is not the daemon.
+
+```bash
+go run ./dev/agent/cmd/g503-ops review-sanction \
+  -chain-id g503-lab -rpc-endpoints http://node1:26657,http://node2:26657,http://node3:26657 \
+  -rpc-min-agreement 2 -rpc-state-dir /private/state/operator-rpc \
+  -key-file /private/authority.key -case-id CASE_ID -reason 'review accepted' \
+  -evidence-hash-hex EVIDENCE_SHA256 -account-number NUMBER -sequence SEQUENCE \
+  -request-id review-CASE_ID
+```
+
+The multihost controller synchronously saves immutable inventory/revision,
+owner nonce, pending steps and completed results in locked `controller.db`.
+After SIGKILL, use `-execute -resume -results SAME_DIR`: completed phases are
+skipped and interrupted operations retain their IDs. Transfers reconcile saved
+signed bytes. Worker mutations use `flock`; PID publication precedes exec;
+partial initialization never overwrites keys. Interrupted runs retain resources
+for resume or `-execute -resume -cleanup`; only verified, cleaned runs pass.
+See the [recovery runbook](dev/README.multihost.md).
+
+Compound regressions kill the controller after an accepted real transfer,
+resume alongside five agents and require one original broadcast/settlement.
+The ownership fixture combines RPC loss, validator add/jail/unbond, restored
+journals and old-owner fencing. Reviewed release invokes the real operator CLI,
+rejects stale RPC without consuming sequence and succeeds through alternate
+RPCs. CI uses local nodes and mock services, not five real SSH hosts.
 
 ## Evaluation Metrics
 

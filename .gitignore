@@ -2,4 +2,5 @@
 .gocache/
 ssh-results/
 agent.db
+controller.db
 /backups/

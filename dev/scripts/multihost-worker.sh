@@ -8,15 +8,36 @@ action="$4"
 shift 4
 [[ "$root" == /* && "$root" != / && "$run" =~ ^[a-zA-Z0-9_-]+$ ]]
 [[ "$(cat "$root/.g503-lab-owned")" == "$owner" ]]
+exec 9>"$root/.worker.lock"
+flock -x 9
+export G503_RPC_STATE_DIR="$root/rpc-state"
 chain="G503_$(printf '%s' "$run" | sha256sum | cut -c1-12)"
 
 launch() {
   local name="$1"
   shift
+  if [[ -f "$root/pids/$name" ]]; then
+    local old_pid old_cmd
+    old_pid="$(cat "$root/pids/$name")"
+    if [[ "$old_pid" =~ ^[0-9]+$ && -r "/proc/$old_pid/cmdline" ]]; then
+      old_cmd="$(tr '\0' ' ' <"/proc/$old_pid/cmdline")"
+      [[ -z "$old_cmd" ]] || { [[ "$old_cmd" == *"$root/bin/"* ]] && return 0; echo "refusing unrelated live PID" >&2; return 1; }
+    fi
+  fi
   local log="$root/logs/$name-$(date +%s%N).log"
-  nohup "$@" </dev/null >"$log" 2>&1 &
-  printf '%s' "$!" >"$root/pids/$name"
   printf '%s' "$log" >"$root/$name.logpath"
+  # Publish the child's PID durably before exec, so a lost controller reply
+  # cannot leave an untracked node/agent or start a second live owner.
+  nohup bash -c 'set -e; pidfile="$1"; shift; printf "%s" "$$" >"$pidfile.tmp"; sync -f "$pidfile.tmp"; mv "$pidfile.tmp" "$pidfile"; sync -f "$(dirname "$pidfile")"; exec "$@"' \
+    bash "$root/pids/$name" "$@" 9>&- </dev/null >"$log" 2>&1 &
+  local child="$!"
+  for _ in $(seq 1 100); do
+    if [[ "$(cat "$root/pids/$name" 2>/dev/null || true)" == "$child" ]]; then return 0; fi
+    kill -0 "$child" || return 1
+    sleep 0.1
+  done
+  echo "PID publication timed out" >&2
+  return 1
 }
 
 stop_owned() {
@@ -26,6 +47,7 @@ stop_owned() {
   [[ "$pid" =~ ^[0-9]+$ && "$pid" -gt 1 ]]
   [[ -r "/proc/$pid/cmdline" ]] || return 0
   cmd="$(tr '\0' ' ' <"/proc/$pid/cmdline")"
+  [[ -n "$cmd" ]] || return 0
   [[ "$cmd" == *"$root/bin/"* ]] || { echo "refusing unrelated PID" >&2; return 1; }
   kill -TERM "$pid" 2>/dev/null || true
   for _ in $(seq 1 30); do
@@ -67,9 +89,13 @@ case "$action" in
     export GOFLAGS=-p=2
     for pair in 'g503d cmd/g503d' 'sanction-agent dev/agent/cmd/sanction-agent' 'g503-send dev/agent/cmd/g503-send' 'risk dev/mock/risk-service' 'llm dev/mock/llm-service' 'agent-api dev/mock/agent-api'; do
       read -r name path <<<"$pair"
-      go build -o "$root/bin/$name" "./$path"
+      if [[ ! -x "$root/bin/$name" ]]; then go build -o "$root/bin/$name.tmp" "./$path"; mv "$root/bin/$name.tmp" "$root/bin/$name"; fi
     done
-    "$root/bin/g503d" init "$2" --home "$root/node" --chain-id "$1" >"$root/logs/init.log"
+    if [[ ! -d "$root/node" ]]; then
+      [[ ! -e "$root/node.init" ]] || { echo "interrupted node initialization requires inspection" >&2; exit 1; }
+      "$root/bin/g503d" init "$2" --home "$root/node.init" --chain-id "$1" >"$root/logs/init.log"
+      mv "$root/node.init" "$root/node"
+    fi
     printf '%s' "$1" >"$root/chain-id"
     perl -0pi -e 's/addr_book_strict = true/addr_book_strict = false/' "$root/node/config/config.toml"
     jq -r '.agent.private_key_hex' "$root/node/config/demo-keys.json" >"$root/agent.key"
@@ -108,12 +134,15 @@ case "$action" in
     curl -fsS --max-time 5 "http://127.0.0.1:26657/block?height=$1" | jq -er '.result.block_id.hash'
     ;;
   transfer)
+    [[ "${1:-}" =~ ^[a-f0-9]{64}$ ]]
+    request_id="$1"
     faucet="$(jq -r '.faucet.address' "$root/node/config/demo-keys.json")"
     recipient="$(jq -r '.demo.address' "$root/node/config/demo-keys.json")"
     account="$(curl -fsS --max-time 5 "http://127.0.0.1:1317/cosmos/auth/v1beta1/accounts/$faucet" | jq '.account')"
     number="$(jq -r '.account_number // .base_account.account_number // .value.account_number' <<<"$account")"
     sequence="$(jq -r '.sequence // .base_account.sequence // .value.sequence' <<<"$account")"
     "$root/bin/g503-send" -rpc-url http://127.0.0.1:26657 -chain-id "$(cat "$root/chain-id")" \
+      -request-id "$request_id" \
       -privkey-hex "$(jq -r '.faucet.private_key_hex' "$root/node/config/demo-keys.json")" \
       -to "$recipient" -amount 1stake -account-number "$number" -sequence "$sequence" -fee 0stake -check-mempool=false
     ;;
@@ -143,8 +172,10 @@ case "$action" in
     ;;
   heal) heal ;;
   cleanup)
-    heal
-    for process in agent node risk llm agent-api; do stop_owned "$process"; done
+    failed=0
+    heal || failed=1
+    for process in agent node risk llm agent-api; do stop_owned "$process" || failed=1; done
+    exit "$failed"
     ;;
   collect) COPYFILE_DISABLE=1 tar --no-xattrs -C "$root" -czf - logs ;;
   *) echo "unsupported multihost worker action" >&2; exit 2 ;;

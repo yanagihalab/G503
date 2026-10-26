@@ -265,9 +265,9 @@ func TestFreezeReviewRevoke(t *testing.T) {
 	evidenceHash := sha256.Sum256(evidence)
 	require.NoError(t, os.WriteFile(filepath.Join(l.home, "logs/safety-review-evidence.json"), evidence, 0o600))
 	l.send(faucet.Key, 19, &st.MsgReviewSanction{Authority: faucet.Address, CaseId: id, Reason: "unauthorized review", EvidenceHash: evidenceHash[:]})
-	l.send(authority.Key, 0, &st.MsgReviewSanction{Authority: authority.Address, CaseId: id, Reason: "false-positive accepted after operator review", EvidenceHash: evidenceHash[:]})
+	l.operatorCLI("review-sanction", id, hex.EncodeToString(evidenceHash[:]), true)
 	require.NoError(t, l.query(l.rpc, "FrozenAddress", &st.QueryFrozenAddressRequest{Address: demo.Address}, &st.QueryFrozenAddressResponse{}), "review alone must keep freeze")
-	l.send(authority.Key, 0, &st.MsgRevokeSanction{Authority: authority.Address, CaseId: id, Reason: "approved review; restore ordinary transfers"})
+	l.operatorCLI("revoke-sanction", id, "", false)
 	l.send(demo.Key, 0, resume)
 	l.save("safety-review-state.json", map[string]any{"case_id": id, "evidence_hash_hex": hex.EncodeToString(evidenceHash[:]), "signed_re_evaluations": len(reviews), "blocked_transfer_hash": failedHash, "normal_transfer_resumed": true, "unauthorized_rejected": true, "review_required": true})
 }

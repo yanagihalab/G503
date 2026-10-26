@@ -21,6 +21,7 @@ import (
 
 	"github.com/yanagihalab/G503/app"
 	"github.com/yanagihalab/G503/dev/agent/internal/chainclient"
+	"github.com/yanagihalab/G503/dev/agent/internal/rpcguard"
 )
 
 type txOutput struct {
@@ -43,6 +44,8 @@ func main() {
 	}
 	action := os.Args[1]
 	fs := flag.NewFlagSet(action, flag.ExitOnError)
+	var guardOptions rpcguard.Options
+	guardOptions.Flags(fs)
 	rpcURL := fs.String("rpc-url", "http://127.0.0.1:26657", "CometBFT RPC URL")
 	chainID := fs.String("chain-id", "g503-local-1", "chain ID used for signing")
 	privKeyHex := fs.String("privkey-hex", "", "validator operator secp256k1 private key hex")
@@ -103,12 +106,22 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	result, err := chainclient.New(*rpcURL, 10*time.Second).BroadcastTxSync(ctx, txBytes)
+	guardOptions.Namespace = signer
+	guard, err := rpcguard.Open(*chainID, *rpcURL, guardOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer guard.Close()
+	result, err := guard.Send(ctx, guardOptions.RequestID, signOpts, msg)
 	if err != nil {
 		log.Fatal(err)
 	}
 	out.Message = "validator lifecycle tx broadcast_tx_sync completed"
 	out.Broadcast = &result
+	out.TxHash = result.Hash
+	if guardOptions.RequestID != "" {
+		out.TxBytesHex = ""
+	}
 	writeOutput(out)
 }
 

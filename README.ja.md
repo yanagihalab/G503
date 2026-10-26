@@ -177,7 +177,8 @@ intent は `queued` / `pending` / `confirmed` / `satisfied`（on-chain で効果
 バックアップなしのDB消失、チェーン初期化、非対応の恒久エラーは運用者対応が必要である。
 全員署名の revert は case 作成時に固定した全投票者の承認を待ち、引き継ぎやjailで署名要件を緩和しない。
 pending の `-target-type tx` 抑制は best effort であり、既に確定した tx は取り消せない。
-この E2E は明示的な address 対象の補償送金を検証する。従来の `-watch` の動作は変更していない。
+この E2E は明示的な address 対象の補償送金を検証する。従来の `-watch` は非永続の処理経路であり、
+現在は下記のRPC保護を適用している。
 
 ```bash
 bash dev/scripts/run-five-agent-e2e.sh
@@ -652,8 +653,8 @@ GitHub CI の実行成功を示すものではない。
 ### RPC 鮮度判定と複数 RPC 切替
 
 常駐 `-daemon` の chain query、pending tx 監視、lease 更新、signed tx 送信を
-共通の RPC pool に統合した。従来の単発 CLI / `-watch` は単一 RPC のままであり、
-すべての CLI にこの保護が適用されるわけではない。
+共通の RPC pool に統合した。下記の運用CLI統合により、当初は対象外だった
+単発CLIとwatch監視にも保護を適用した。
 
 既存 agent JSON config に以下を追加する。リスト省略時も `rpc_url` 1台を検証する。
 
@@ -710,6 +711,41 @@ controller 模擬試験・worker の firewall 代替試験・SSH を使わない
 [GitHub CI run 40266240640](https://github.com/yanagihalab/G503/actions/runs/40266240640)
 の両 job 成功を確認した。以前の「GitHub CI 未確認」はこの checkpoint について解消済みであり、
 実5ホストの検証成功を意味しない。
+
+### Controller 復旧と運用CLIのRPC保護
+
+`g503-ops` の再審査・解除、`g503-send`、`g503-validator`、単発／watchの
+`sanction-agent` に共通RPC保護を適用した。watchのpending取得も同じ選択済みRPCを使う。
+読み取り専用watchでも正しい `-chain-id` を明示する。offline dry-runでは接続しない。
+
+運用・送金・validator CLIは `-rpc-endpoints`、`-rpc-min-agreement`、鮮度・時刻差・
+height差・probe timeoutの各flag、`-rpc-genesis-hash`、`-rpc-state-dir`、`-request-id`
+を受け付ける。agentは既存RPC設定に加えて単発／watch用の `-rpc-state-dir` と
+単発操作用の `-request-id` を使える。
+
+既定保存先は `G503_RPC_STATE_DIR`、未指定時は `~/.local/state/g503/rpc`。
+directoryは `0700`、DBは `0600` を要求し、chain IDと署名者ごとに排他管理する。
+再起動後もgenesisと履歴を照合する。同じchain IDの別実験には別directoryを使い、
+不明な履歴変更を受け入れるためにcheckpointを削除しない。
+
+要求IDを指定すると、署名済みbytesを送信前に保存する。同じIDの再実行では元のhashを照合し、
+入力sequenceが更新されていても新しいtxに署名し直さない。message・署名者・fee・gas・memoの
+変更は拒否する。照合失敗や、txが見つからないままsequenceが消費済みの場合は停止する。
+sequenceが同じ場合も再送できるのは同一bytesのみ。ID未指定のCLIには永続的な重複抑止はなく、
+旧watchは永続daemonの代替ではない。
+
+controllerは `controller.db` にinventory／commit・所有者・未完了step・完了結果を同期保存する。
+同時起動を排他ロックで拒否し、SIGKILL後は `-execute -resume -results 同じdirectory` で再開する。
+完了済みstepを飛ばし、送金は同じ要求IDで照合する。workerにはflockとexec前のPID永続化を追加し、
+部分初期化された鍵を上書きしない。中断時は再開用の資源を保持するため、終了させる場合は
+`-execute -resume -cleanup` を明示する。[復旧手順](dev/README.multihost.md)を参照。
+
+複合E2Eでは、送金受理直後のcontroller強制終了→再開、5 agentの合意形成、
+元送金のbroadcast 1回・返還1回を検査する。別の試験ではRPC停止にvalidator追加／
+jail／unbond、5 journal復元、旧process復帰の送信抑止を組み合わせる。
+再審査・解除は実際の `g503-ops` を呼び、古いRPCでは送信・sequence消費せず、
+正常RPCへの切替で完了することを検査する。CIはローカルノードとmockサービスを使い、
+実SSHホストの成功を意味しない。
 
 ## 評価指標
 

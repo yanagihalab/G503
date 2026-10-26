@@ -15,6 +15,7 @@ import (
 
 	"github.com/yanagihalab/G503/dev/agent/internal/agentconfig"
 	"github.com/yanagihalab/G503/dev/agent/internal/chainclient"
+	"github.com/yanagihalab/G503/dev/agent/internal/rpcguard"
 	"github.com/yanagihalab/G503/dev/agent/internal/signer"
 	sanctiontypes "github.com/yanagihalab/G503/x/sanction/types"
 )
@@ -193,6 +194,8 @@ func revokeSanctionCmd(args []string) error {
 
 func sanctionDecisionCmd(command string, args []string) error {
 	fs := flag.NewFlagSet(command, flag.ExitOnError)
+	var guardOptions rpcguard.Options
+	guardOptions.Flags(fs)
 	rpcURL := fs.String("rpc-url", "http://127.0.0.1:26657", "CometBFT RPC URL")
 	chainID := fs.String("chain-id", "g503-local-1", "chain ID")
 	privKeyHex := fs.String("privkey-hex", "", "authority private key hex")
@@ -244,7 +247,15 @@ func sanctionDecisionCmd(command string, args []string) error {
 			"message":   msg,
 		}, 0)
 	}
-	result, err := chainclient.New(*rpcURL, 10*time.Second).BroadcastSignedMsgs(context.Background(), chainclient.SignOptions{
+	guardOptions.Namespace = s.Address
+	guard, err := rpcguard.Open(*chainID, *rpcURL, guardOptions)
+	if err != nil {
+		return err
+	}
+	defer guard.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	result, err := guard.Send(ctx, guardOptions.RequestID, chainclient.SignOptions{
 		ChainID:       *chainID,
 		PrivateKeyHex: *privKeyHex,
 		AccountNumber: *accountNumber,
