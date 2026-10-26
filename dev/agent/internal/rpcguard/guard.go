@@ -115,10 +115,30 @@ func (s *Session) put(key string, value any) error {
 }
 
 type attempt struct {
-	Intent   string `json:"intent"`
-	Tx       []byte `json:"tx"`
-	Hash     string `json:"hash"`
-	Sequence uint64 `json:"sequence"`
+	Intent        string  `json:"intent"`
+	Tx            []byte  `json:"tx"`
+	Hash          string  `json:"hash"`
+	Sequence      uint64  `json:"sequence"`
+	AccountNumber *uint64 `json:"account_number,omitempty"`
+}
+
+type Receipt struct {
+	Hash          string
+	AccountNumber *uint64
+	Sequence      uint64
+}
+
+func (s *Session) Receipt(id string) (Receipt, error) {
+	var saved attempt
+	hash := sha256.Sum256([]byte(id))
+	err := s.db.View(func(tx *bolt.Tx) error {
+		bz := tx.Bucket([]byte("rpc")).Get([]byte("request/" + hex.EncodeToString(hash[:])))
+		if bz == nil {
+			return fmt.Errorf("request receipt not found")
+		}
+		return json.Unmarshal(bz, &saved)
+	})
+	return Receipt{Hash: saved.Hash, AccountNumber: saved.AccountNumber, Sequence: saved.Sequence}, err
 }
 
 // Send preserves original signed bytes across lost acknowledgements. It never
@@ -205,7 +225,8 @@ func (s *Session) Send(ctx context.Context, id string, options chainclient.SignO
 			return zero, err
 		}
 		hash := sha256.Sum256(tx)
-		saved = attempt{Intent: hex.EncodeToString(intentHash[:]), Tx: tx, Hash: strings.ToUpper(hex.EncodeToString(hash[:])), Sequence: options.Sequence}
+		number := options.AccountNumber
+		saved = attempt{Intent: hex.EncodeToString(intentHash[:]), Tx: tx, Hash: strings.ToUpper(hex.EncodeToString(hash[:])), Sequence: options.Sequence, AccountNumber: &number}
 		if err := s.put(recordKey, saved); err != nil {
 			return zero, err
 		}

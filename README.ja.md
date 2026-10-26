@@ -729,7 +729,8 @@ directoryは `0700`、DBは `0600` を要求し、chain IDと署名者ごとに�
 不明な履歴変更を受け入れるためにcheckpointを削除しない。
 
 要求IDを指定すると、署名済みbytesを送信前に保存する。同じIDの再実行では元のhashを照合し、
-入力sequenceが更新されていても新しいtxに署名し直さない。message・署名者・fee・gas・memoの
+入力sequenceが更新されていても新しいtxに署名し直さず、送金／validator CLIの表示も元のsequenceを使う。
+message・署名者・fee・gas・memoの
 変更は拒否する。照合失敗や、txが見つからないままsequenceが消費済みの場合は停止する。
 sequenceが同じ場合も再送できるのは同一bytesのみ。ID未指定のCLIには永続的な重複抑止はなく、
 旧watchは永続daemonの代替ではない。

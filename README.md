@@ -838,7 +838,8 @@ and exclusively locked. Reused chain IDs in independent experiments need
 separate directories. Never delete a checkpoint to accept an unexplained reset.
 
 An explicit request ID saves signed bytes before I/O. Repeating it reconciles
-the original hash even if the supplied sequence has changed. Changed messages,
+the original hash even if the supplied sequence has changed. Send/validator
+receipts report the saved sequence, not the new input. Changed messages,
 signers, fee, gas or memo are rejected. An unknown lookup or a consumed sequence
 without an indexed result stops recovery, not re-signing. When sequence still
 matches, only identical bytes may be retransmitted. Without a request ID, CLI

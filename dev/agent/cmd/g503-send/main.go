@@ -119,6 +119,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if guardOptions.RequestID != "" {
+		receipt, err := guard.Receipt(guardOptions.RequestID)
+		if err != nil {
+			log.Fatal(err)
+		}
+		*sequence = receipt.Sequence
+		if receipt.AccountNumber != nil {
+			*accountNumber = *receipt.AccountNumber
+		}
+	}
 	seen := false
 	if *checkMempool {
 		seen, err = waitForGuardedMempool(ctx, guard.Client, result.Hash)

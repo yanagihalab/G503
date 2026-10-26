@@ -96,7 +96,7 @@ func TestGuardPersistsHistoryAndNeverReplacesAmbiguousSend(t *testing.T) {
 	key := strings.Repeat("01", 32)
 	signer, err := signer.New("test", key)
 	require.NoError(t, err)
-	sign := chainclient.SignOptions{ChainID: "guard-test", PrivateKeyHex: key, GasLimit: 200000}
+	sign := chainclient.SignOptions{ChainID: "guard-test", PrivateKeyHex: key, GasLimit: 200000, AccountNumber: 7}
 	msg := &bank.MsgSend{FromAddress: signer.Address, ToAddress: signer.Address, Amount: sdk.NewCoins(sdk.NewInt64Coin("stake", 1))}
 	g, err := Open("guard-test", s.URL, options)
 	require.NoError(t, err)
@@ -111,6 +111,12 @@ func TestGuardPersistsHistoryAndNeverReplacesAmbiguousSend(t *testing.T) {
 	result, err := g.Send(ctx, "transfer-1", sign, msg)
 	require.NoError(t, err)
 	require.NotEmpty(t, result.Hash)
+	receipt, err := g.Receipt("transfer-1")
+	require.NoError(t, err)
+	require.Zero(t, receipt.Sequence)
+	require.NotNil(t, receipt.AccountNumber)
+	require.EqualValues(t, 7, *receipt.AccountNumber)
+	require.Equal(t, result.Hash, receipt.Hash)
 	f.mu.Lock()
 	require.Equal(t, 1, f.sends)
 	f.mu.Unlock()

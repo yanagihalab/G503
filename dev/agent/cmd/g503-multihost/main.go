@@ -16,7 +16,7 @@ import (
 func main() {
 	path := flag.String("inventory", "", "five-host inventory JSON")
 	revision := flag.String("revision", "", "override with the full pushed commit SHA")
-	results := flag.String("results", "", "new local result directory (required with -execute)")
+	results := flag.String("results", "", "private results directory: new for execute, existing for resume")
 	execute := flag.Bool("execute", false, "explicitly provision five hosts and inject scoped firewall faults")
 	resume := flag.Bool("resume", false, "resume the same private controller journal and immutable inventory")
 	cleanup := flag.Bool("cleanup", false, "recover owned resources only; requires -execute -resume")
@@ -36,7 +36,7 @@ func main() {
 	var summary multihost.Summary
 	if *execute {
 		if *results == "" || *duration <= 0 {
-			fail(fmt.Errorf("-results must name a new directory and -timeout must be positive"))
+			fail(fmt.Errorf("-results is required and -timeout must be positive"))
 		}
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()

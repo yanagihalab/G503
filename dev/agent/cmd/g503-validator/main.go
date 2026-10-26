@@ -121,6 +121,14 @@ func main() {
 	out.TxHash = result.Hash
 	if guardOptions.RequestID != "" {
 		out.TxBytesHex = ""
+		receipt, err := guard.Receipt(guardOptions.RequestID)
+		if err != nil {
+			log.Fatal(err)
+		}
+		out.Sequence = receipt.Sequence
+		if receipt.AccountNumber != nil {
+			out.Account = *receipt.AccountNumber
+		}
 	}
 	writeOutput(out)
 }
