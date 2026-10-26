@@ -125,7 +125,9 @@ run_agent_recovery_scenario() {
     -marker "$LOG_DIR/recovery-lost-open.json" >"$LOG_DIR/recovery-proxy.log" 2>&1 &
   pids+=("$!")
   wait_http "http://$proxy_listen/status" 30
-  jq --arg rpc "http://$proxy_listen" '.rpc_url=$rpc' "$HOME_DIR/agent1.json" >"$HOME_DIR/agent1-proxy.json"
+  # Route this specific lost-ACK injection through its sole witness, then restore the pool.
+  jq --arg rpc "http://$proxy_listen" '.rpc_url=$rpc | .rpc_endpoints=[$rpc] | .rpc_safety.min_agreement=1' \
+    "$HOME_DIR/agent1.json" >"$HOME_DIR/agent1-proxy.json"
   mv "$HOME_DIR/agent1-proxy.json" "$HOME_DIR/agent1.json"
   start_auto_agents recovery-pending -expiry-height 13
   auto_send_transfer 7stake "$LOG_DIR/recovery-transfer2.json"
@@ -144,7 +146,9 @@ run_agent_recovery_scenario() {
   wait_recovery_height "$((deadline+1))"
 
   echo "[recovery 5/7] renew expired case and obtain five fresh signatures"
-  jq --arg rpc "$RPC_URL" '.rpc_url=$rpc' "$HOME_DIR/agent1.json" >"$HOME_DIR/agent1-direct.json"
+  jq --arg rpc "$RPC_URL" --slurpfile healthy "$HOME_DIR/agent2.json" \
+    '.rpc_url=$rpc | .rpc_endpoints=$healthy[0].rpc_endpoints | .rpc_safety=$healthy[0].rpc_safety' \
+    "$HOME_DIR/agent1.json" >"$HOME_DIR/agent1-direct.json"
   mv "$HOME_DIR/agent1-direct.json" "$HOME_DIR/agent1.json"
   start_auto_agents recovery-round
   wait_json_field "$API_URL/sanction/v1/executions/$case2-r1" '.record.result_code=="ok"' "$LOG_DIR/recovery-execution2.json" 180
