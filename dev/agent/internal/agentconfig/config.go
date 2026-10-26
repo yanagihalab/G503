@@ -10,6 +10,8 @@ import (
 type Config struct {
 	ChainID       string          `json:"chain_id"`
 	RPCURL        string          `json:"rpc_url"`
+	RPCEndpoints  []string        `json:"rpc_endpoints,omitempty"`
+	RPCSafety     RPCSafetyConfig `json:"rpc_safety,omitempty"`
 	RiskURL       string          `json:"risk_url"`
 	RiskProvider  string          `json:"risk_provider"`
 	RiskAPIKeyEnv string          `json:"risk_api_key_env"`
@@ -22,6 +24,14 @@ type Config struct {
 	AgentAPI      AgentAPIConfig  `json:"agent_api"`
 	Broadcast     BroadcastConfig `json:"broadcast"`
 	Daemon        DaemonConfig    `json:"daemon"`
+}
+
+type RPCSafetyConfig struct {
+	MaxBlockAgeSeconds   int     `json:"max_block_age_seconds,omitempty"`
+	MaxFutureSkewSeconds int     `json:"max_future_skew_seconds,omitempty"`
+	MaxHeightLag         *uint64 `json:"max_height_lag,omitempty"`
+	MinAgreement         int     `json:"min_agreement,omitempty"`
+	ProbeTimeoutSeconds  int     `json:"probe_timeout_seconds,omitempty"`
 }
 
 type DaemonConfig struct {

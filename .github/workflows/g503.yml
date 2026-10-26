@@ -23,6 +23,8 @@ jobs:
         run: for script in dev/scripts/*.sh dev/scripts/tests/*.sh; do bash -n "$script" || exit; done
       - name: SSH helper regression tests
         run: bash dev/scripts/test-ssh-helpers.sh
+      - name: Five-host plan without SSH or credentials
+        run: go run ./dev/agent/cmd/g503-multihost -inventory dev/multihost.example.json -revision "$GITHUB_SHA"
       - name: Go test
         run: go test ./...
       - name: Go vet
@@ -47,7 +49,7 @@ jobs:
           cache: true
       - name: Five-validator E2E
         run: ./dev/scripts/run-five-validator-e2e.sh
-      - name: Five agents, reviewed sanctions and durable disaster recovery
+      - name: Five agents, RPC failover, reviewed sanctions and durable disaster recovery
         env:
           G503_MULTI_HOME: /tmp/g503-five-agent-e2e
         run: bash dev/scripts/run-agent-recovery-e2e.sh

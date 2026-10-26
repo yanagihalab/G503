@@ -58,59 +58,65 @@ type broadcastOutput struct {
 
 func main() {
 	var (
-		txPath         = flag.String("tx", "", "path to tx metadata JSON")
-		configPath     = flag.String("config", "", "optional sanction-agent JSON config")
-		riskURL        = flag.String("risk-url", "http://127.0.0.1:8081", "risk service URL")
-		riskProvider   = flag.String("risk-provider", "mock", "risk provider: mock or chainalysis")
-		riskAPIKey     = flag.String("risk-api-key", os.Getenv("CHAINALYSIS_API_KEY"), "risk provider API key; defaults to CHAINALYSIS_API_KEY")
-		llmURL         = flag.String("llm-url", "http://127.0.0.1:8082", "LLM service URL")
-		llmProvider    = flag.String("llm-provider", "mock", "LLM provider: mock or ollama")
-		llmModel       = flag.String("llm-model", "llama3.1", "LLM model name for ollama")
-		agentAPIURL    = flag.String("agent-api-url", "", "optional AI agent evaluation API URL")
-		agentAPIToken  = flag.String("agent-api-token", os.Getenv("G503_AGENT_API_TOKEN"), "AI agent API bearer token; defaults to G503_AGENT_API_TOKEN")
-		agentAPIRole   = flag.String("agent-api-role", "validator-agent", "AI agent API RBAC role header")
-		mtlsCertFile   = flag.String("mtls-cert-file", "", "optional client mTLS certificate file for agent API")
-		mtlsKeyFile    = flag.String("mtls-key-file", "", "optional client mTLS key file for agent API")
-		mtlsCAFile     = flag.String("mtls-ca-file", "", "optional CA file for agent API mTLS")
-		keyFile        = flag.String("key-file", "", "file containing secp256k1 private key hex")
-		trustedAddrs   = flag.String("trusted-addresses", "", "comma-separated trusted addresses for agent API policy calibration")
-		blockedAddrs   = flag.String("blocked-addresses", "", "comma-separated blocked addresses for agent API policy calibration")
-		txConfirmed    = flag.Bool("tx-confirmed", false, "mark tx as already confirmed for agent API action selection")
-		chainID        = flag.String("chain-id", "sanction-demo-1", "chain ID used for signing")
-		agentID        = flag.String("agent-id", "", "agent id for signing")
-		privKeyHex     = flag.String("privkey-hex", "", "secp256k1 private key hex for signing")
-		caseID         = flag.String("case-id", "", "case id for optional signed vote")
-		height         = flag.Uint64("height", 1, "observed and signed height")
-		expiryHeight   = flag.Uint64("expiry-height", 101, "risk report expiry height")
-		targetType     = flag.String("target-type", "tx", "sanction target type: tx or address")
-		broadcast      = flag.Bool("broadcast", false, "broadcast generated sanction messages as a Cosmos SDK tx")
-		rpcURL         = flag.String("rpc-url", "http://127.0.0.1:26657", "CometBFT RPC URL for tx broadcast")
-		execute        = flag.Bool("execute", false, "append MsgExecuteSanction after voting; useful for single-agent PoC")
-		voteOnly       = flag.Bool("vote-only", false, "broadcast only MsgSubmitSanctionVote for an existing case")
-		executeOnly    = flag.Bool("execute-only", false, "broadcast only MsgExecuteSanction for an approved case")
-		voteAction     = flag.String("vote-action", "block_tx", "approved action for -vote-only: block_tx, freeze_address, escrow_funds, or revert_transfer")
-		rationaleHash  = flag.String("rationale-hash-hex", "", "optional rationale hash hex for -vote-only")
-		watch          = flag.Bool("watch", false, "poll pending CometBFT txs, decode bank sends, and screen them")
-		daemon         = flag.Bool("daemon", false, "durable autonomous proposal/vote/execute daemon")
-		stateDir       = flag.String("state-dir", "", "owner-only durable agent journal directory (required for daemon)")
-		daemonStatus   = flag.Bool("daemon-status", false, "export a stopped daemon journal as JSON")
-		journalBackup  = flag.String("journal-backup", "", "offline backup archive path (never overwritten)")
-		journalRestore = flag.String("journal-restore", "", "offline archive to restore into an absent agent.db")
-		backupChecksum = flag.String("backup-sha256", "", "trusted SHA-256 required for restore")
-		genesisBinding = flag.String("journal-genesis-hash", "", "trusted genesis fingerprint for restore or explicit legacy binding")
-		printGenesis   = flag.Bool("print-genesis-hash", false, "print the RPC genesis fingerprint without opening journal or reading key")
-		retryIntent    = flag.String("retry-intent", "", "explicit failed intent to reconcile and retry when starting daemon")
-		retryReason    = flag.String("retry-reason", "", "operator reason for the explicit retry")
-		retryRequestID = flag.String("retry-request-id", "", "stable idempotency key for a recovery request; defaults to reason hash")
-		leaseTTL       = flag.Uint64("lease-ttl-blocks", 24, "signing ownership TTL in blocks (6..100)")
-		leaseWait      = flag.Duration("lease-wait", 0, "explicit startup wait for the previous signing owner's lease to expire")
-		startHeight    = flag.Uint64("start-height", 0, "initial block replay height; zero starts at current tip, restart resumes cursor")
-		pollInterval   = flag.Duration("poll-interval", time.Second, "pending tx polling interval")
-		pollLimit      = flag.Int("poll-limit", 100, "maximum pending txs to fetch per poll")
-		accountNumber  = flag.Uint64("account-number", 0, "Cosmos account number for signed tx broadcast")
-		sequence       = flag.Uint64("sequence", 0, "Cosmos account sequence for signed tx broadcast")
-		gasLimit       = flag.Uint64("gas", 500000, "gas limit for signed tx broadcast")
-		fee            = flag.String("fee", "0stake", "fee amount for signed tx broadcast, for example 1000stake")
+		txPath          = flag.String("tx", "", "path to tx metadata JSON")
+		configPath      = flag.String("config", "", "optional sanction-agent JSON config")
+		riskURL         = flag.String("risk-url", "http://127.0.0.1:8081", "risk service URL")
+		riskProvider    = flag.String("risk-provider", "mock", "risk provider: mock or chainalysis")
+		riskAPIKey      = flag.String("risk-api-key", os.Getenv("CHAINALYSIS_API_KEY"), "risk provider API key; defaults to CHAINALYSIS_API_KEY")
+		llmURL          = flag.String("llm-url", "http://127.0.0.1:8082", "LLM service URL")
+		llmProvider     = flag.String("llm-provider", "mock", "LLM provider: mock or ollama")
+		llmModel        = flag.String("llm-model", "llama3.1", "LLM model name for ollama")
+		agentAPIURL     = flag.String("agent-api-url", "", "optional AI agent evaluation API URL")
+		agentAPIToken   = flag.String("agent-api-token", os.Getenv("G503_AGENT_API_TOKEN"), "AI agent API bearer token; defaults to G503_AGENT_API_TOKEN")
+		agentAPIRole    = flag.String("agent-api-role", "validator-agent", "AI agent API RBAC role header")
+		mtlsCertFile    = flag.String("mtls-cert-file", "", "optional client mTLS certificate file for agent API")
+		mtlsKeyFile     = flag.String("mtls-key-file", "", "optional client mTLS key file for agent API")
+		mtlsCAFile      = flag.String("mtls-ca-file", "", "optional CA file for agent API mTLS")
+		keyFile         = flag.String("key-file", "", "file containing secp256k1 private key hex")
+		trustedAddrs    = flag.String("trusted-addresses", "", "comma-separated trusted addresses for agent API policy calibration")
+		blockedAddrs    = flag.String("blocked-addresses", "", "comma-separated blocked addresses for agent API policy calibration")
+		txConfirmed     = flag.Bool("tx-confirmed", false, "mark tx as already confirmed for agent API action selection")
+		chainID         = flag.String("chain-id", "sanction-demo-1", "chain ID used for signing")
+		agentID         = flag.String("agent-id", "", "agent id for signing")
+		privKeyHex      = flag.String("privkey-hex", "", "secp256k1 private key hex for signing")
+		caseID          = flag.String("case-id", "", "case id for optional signed vote")
+		height          = flag.Uint64("height", 1, "observed and signed height")
+		expiryHeight    = flag.Uint64("expiry-height", 101, "risk report expiry height")
+		targetType      = flag.String("target-type", "tx", "sanction target type: tx or address")
+		broadcast       = flag.Bool("broadcast", false, "broadcast generated sanction messages as a Cosmos SDK tx")
+		rpcURL          = flag.String("rpc-url", "http://127.0.0.1:26657", "CometBFT RPC URL for tx broadcast")
+		rpcEndpoints    = flag.String("rpc-endpoints", "", "comma-separated daemon RPC endpoints; overrides config endpoints")
+		rpcMaxAge       = flag.Duration("rpc-max-block-age", 15*time.Second, "maximum committed block age before daemon stops sends")
+		rpcFutureSkew   = flag.Duration("rpc-max-future-skew", 3*time.Second, "maximum future block clock skew")
+		rpcMaxLag       = flag.Uint64("rpc-max-height-lag", 2, "maximum endpoint height lag from the freshest eligible RPC")
+		rpcAgreement    = flag.Int("rpc-min-agreement", 0, "matching RPC responses required; zero uses strict majority of configured endpoints")
+		rpcProbeTimeout = flag.Duration("rpc-probe-timeout", 3*time.Second, "timeout for each RPC safety probe")
+		execute         = flag.Bool("execute", false, "append MsgExecuteSanction after voting; useful for single-agent PoC")
+		voteOnly        = flag.Bool("vote-only", false, "broadcast only MsgSubmitSanctionVote for an existing case")
+		executeOnly     = flag.Bool("execute-only", false, "broadcast only MsgExecuteSanction for an approved case")
+		voteAction      = flag.String("vote-action", "block_tx", "approved action for -vote-only: block_tx, freeze_address, escrow_funds, or revert_transfer")
+		rationaleHash   = flag.String("rationale-hash-hex", "", "optional rationale hash hex for -vote-only")
+		watch           = flag.Bool("watch", false, "poll pending CometBFT txs, decode bank sends, and screen them")
+		daemon          = flag.Bool("daemon", false, "durable autonomous proposal/vote/execute daemon")
+		stateDir        = flag.String("state-dir", "", "owner-only durable agent journal directory (required for daemon)")
+		daemonStatus    = flag.Bool("daemon-status", false, "export a stopped daemon journal as JSON")
+		journalBackup   = flag.String("journal-backup", "", "offline backup archive path (never overwritten)")
+		journalRestore  = flag.String("journal-restore", "", "offline archive to restore into an absent agent.db")
+		backupChecksum  = flag.String("backup-sha256", "", "trusted SHA-256 required for restore")
+		genesisBinding  = flag.String("journal-genesis-hash", "", "trusted genesis fingerprint for restore or explicit legacy binding")
+		printGenesis    = flag.Bool("print-genesis-hash", false, "print the RPC genesis fingerprint without opening journal or reading key")
+		retryIntent     = flag.String("retry-intent", "", "explicit failed intent to reconcile and retry when starting daemon")
+		retryReason     = flag.String("retry-reason", "", "operator reason for the explicit retry")
+		retryRequestID  = flag.String("retry-request-id", "", "stable idempotency key for a recovery request; defaults to reason hash")
+		leaseTTL        = flag.Uint64("lease-ttl-blocks", 24, "signing ownership TTL in blocks (6..100)")
+		leaseWait       = flag.Duration("lease-wait", 0, "explicit startup wait for the previous signing owner's lease to expire")
+		startHeight     = flag.Uint64("start-height", 0, "initial block replay height; zero starts at current tip, restart resumes cursor")
+		pollInterval    = flag.Duration("poll-interval", time.Second, "pending tx polling interval")
+		pollLimit       = flag.Int("poll-limit", 100, "maximum pending txs to fetch per poll")
+		accountNumber   = flag.Uint64("account-number", 0, "Cosmos account number for signed tx broadcast")
+		sequence        = flag.Uint64("sequence", 0, "Cosmos account sequence for signed tx broadcast")
+		gasLimit        = flag.Uint64("gas", 500000, "gas limit for signed tx broadcast")
+		fee             = flag.String("fee", "0stake", "fee amount for signed tx broadcast, for example 1000stake")
 	)
 	flag.Parse()
 	explicitFlags := map[string]string{}
@@ -150,6 +156,24 @@ func main() {
 	}
 	if _, explicit := explicitFlags["rpc-url"]; !explicit && cfg.RPCURL != "" {
 		*rpcURL = cfg.RPCURL
+	}
+	if _, explicit := explicitFlags["rpc-endpoints"]; !explicit {
+		*rpcEndpoints = strings.Join(cfg.RPCEndpoints, ",")
+	}
+	if _, explicit := explicitFlags["rpc-max-block-age"]; !explicit && cfg.RPCSafety.MaxBlockAgeSeconds != 0 {
+		*rpcMaxAge = time.Duration(cfg.RPCSafety.MaxBlockAgeSeconds) * time.Second
+	}
+	if _, explicit := explicitFlags["rpc-max-future-skew"]; !explicit && cfg.RPCSafety.MaxFutureSkewSeconds != 0 {
+		*rpcFutureSkew = time.Duration(cfg.RPCSafety.MaxFutureSkewSeconds) * time.Second
+	}
+	if _, explicit := explicitFlags["rpc-probe-timeout"]; !explicit && cfg.RPCSafety.ProbeTimeoutSeconds != 0 {
+		*rpcProbeTimeout = time.Duration(cfg.RPCSafety.ProbeTimeoutSeconds) * time.Second
+	}
+	if _, explicit := explicitFlags["rpc-min-agreement"]; !explicit && cfg.RPCSafety.MinAgreement != 0 {
+		*rpcAgreement = cfg.RPCSafety.MinAgreement
+	}
+	if _, explicit := explicitFlags["rpc-max-height-lag"]; !explicit && cfg.RPCSafety.MaxHeightLag != nil {
+		*rpcMaxLag = *cfg.RPCSafety.MaxHeightLag
 	}
 	if _, ok := explicitFlags["daemon"]; !ok && cfg.Daemon.Enabled {
 		*daemon = true
@@ -241,9 +265,11 @@ func main() {
 	}
 
 	opts := processOptions{
-		leaseTTL:    *leaseTTL,
-		leaseWait:   *leaseWait,
-		retryIntent: *retryIntent, retryReason: *retryReason, retryRequestID: *retryRequestID, genesisBinding: *genesisBinding,
+		rpcEndpoints: splitCSV(*rpcEndpoints),
+		rpcSafety:    chainclient.RPCSafety{ChainID: *chainID, MaxBlockAge: *rpcMaxAge, MaxFutureSkew: *rpcFutureSkew, MaxHeightLag: *rpcMaxLag, MinAgreement: *rpcAgreement, ProbeTimeout: *rpcProbeTimeout},
+		leaseTTL:     *leaseTTL,
+		leaseWait:    *leaseWait,
+		retryIntent:  *retryIntent, retryReason: *retryReason, retryRequestID: *retryRequestID, genesisBinding: *genesisBinding,
 		riskURL:       *riskURL,
 		riskProvider:  *riskProvider,
 		riskAPIKey:    *riskAPIKey,
@@ -617,6 +643,8 @@ func splitCSV(value string) []string {
 }
 
 type processOptions struct {
+	rpcEndpoints   []string
+	rpcSafety      chainclient.RPCSafety
 	leaseTTL       uint64
 	leaseWait      time.Duration
 	retryIntent    string

@@ -747,6 +747,78 @@ settlements. Results are under `regression-final/summary.json`,
 These are local process/mock-service results, not real multi-host SSH,
 production-service or successful GitHub CI execution claims.
 
+### Fresh RPCs and Durable History Checkpoints
+
+Resident `-daemon` agents now use a guarded RPC pool for pinned chain reads,
+pending-tx polling, ownership leases and signed broadcasts. Legacy one-shot and
+`-watch` commands still use their single configured RPC; this is not a global
+change to every CLI client.
+
+```json
+{
+  "rpc_endpoints": ["http://node1:26657", "http://node2:26657", "http://node3:26657"],
+  "rpc_safety": {
+    "max_block_age_seconds": 15,
+    "max_future_skew_seconds": 3,
+    "max_height_lag": 2,
+    "min_agreement": 2,
+    "probe_timeout_seconds": 3
+  }
+}
+```
+
+Merge these fields into the existing agent config. CLI equivalents are
+`-rpc-endpoints`, `-rpc-max-block-age`, `-rpc-max-future-skew`,
+`-rpc-max-height-lag`, `-rpc-min-agreement` and `-rpc-probe-timeout`.
+Without a list, the existing `rpc_url` is guarded as one endpoint. Agreement
+defaults to a strict majority of the configured endpoints, not the survivors.
+
+Each tick and broadcast checks chain ID, genesis fingerprint, block age,
+future clock skew, `catching_up`, height regression, acceptable height lag and
+agreement on one common block hash. Common height/hash and genesis are committed
+to `meta/rpc_checkpoint` before a send. Restart and offline backup/restore retain
+this checkpoint; a reset/fork with the same genesis is rejected if it changes
+the saved block. Slow persistence is followed by another freshness check.
+Selection is observable through `rpc_selected` and `rpc_broadcast` JSON events.
+
+A failed broadcast is never immediately replayed on another endpoint. The
+existing durable tx manager reconciles signed bytes, sequence and semantic
+effects before a retry. No fresh continuous majority means no new sends.
+These are trusted-RPC consistency checks, **not cryptographic CometBFT light
+client verification**. Keep independent endpoints, synchronized clocks and
+retained checkpoint blocks. A malicious/correlated majority, pruning past the
+checkpoint or dishonest clocks remain outside this guarantee.
+
+### Five-Host Fault E2E Foundation
+
+The new `g503-multihost` controller provisions five distinct Linux SSH hosts at
+one pushed commit. Default invocation only produces a plan and does not use SSH:
+
+```bash
+go run ./dev/agent/cmd/g503-multihost \
+  -inventory dev/multihost.example.json -revision "$(git rev-parse HEAD)"
+```
+
+Real execution requires `-execute` and a new result directory. The inventory
+example contains documentation-only IPs and an invalid placeholder SHA; replace
+them before execution. See [five-host runbook](dev/README.multihost.md) for
+prerequisites, commands, cleanup and limitations. The scenario covers 4:1
+partition/heal, 3:2 consensus halt and stale-send suppression, all-five restart,
+unique settlement/five votes/balance restoration and common-block convergence.
+Only owned PIDs/firewall chains are changed; no global flush or key collection.
+
+Unit tests simulate the controller and exercise the worker with fake firewall
+commands. PR CI runs these tests and the no-SSH plan. The existing local
+five-validator/five-agent recovery scenario now also stops preferred RPC node1,
+requires all five agents to switch to the remaining RPCs and settle a transfer,
+then restarts the node. **Five real SSH hosts and actual firewall partition
+behavior have not been executed without host details.** Risk/LLM remain mocks.
+
+The verified pre-change checkpoint was pushed as `3243c82`; both GitHub CI jobs
+passed in [run 40266240640](https://github.com/yanagihalab/G503/actions/runs/40266240640).
+This supersedes the earlier statement that GitHub CI was unconfirmed; it does
+not claim that a real five-host experiment passed.
+
 ## Evaluation Metrics
 
 Initial evaluation focuses on:

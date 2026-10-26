@@ -1,0 +1,14 @@
+{
+  "run_id": "g503-net-001",
+  "chain_id": "g503-multihost-1",
+  "repository": "https://github.com/yanagihalab/G503.git",
+  "revision": "0000000000000000000000000000000000000000",
+  "remote_base": "/var/tmp/g503-lab",
+  "hosts": [
+    {"id":"node1","ssh":"ubuntu@192.0.2.11","port":22,"peer_ip":"192.0.2.11"},
+    {"id":"node2","ssh":"ubuntu@192.0.2.12","port":22,"peer_ip":"192.0.2.12"},
+    {"id":"node3","ssh":"ubuntu@192.0.2.13","port":22,"peer_ip":"192.0.2.13"},
+    {"id":"node4","ssh":"ubuntu@192.0.2.14","port":22,"peer_ip":"192.0.2.14"},
+    {"id":"node5","ssh":"ubuntu@192.0.2.15","port":22,"peer_ip":"192.0.2.15"}
+  ]
+}

@@ -98,6 +98,8 @@ func TestBackupRestoreAndStaleFailedJournalReconciliation(t *testing.T) {
 	s, err := Open(path, "identity")
 	require.NoError(t, err)
 	require.NoError(t, s.BindGenesis(genesis, false))
+	checkpoint := chainclient.Checkpoint{GenesisHash: genesis, Height: 12, BlockHash: strings.Repeat("cd", 32)}
+	require.NoError(t, s.Put("meta", "rpc_checkpoint", checkpoint))
 	f := &fakeChain{results: map[string]chainclient.TxResult{}, checkCode: 11}
 	m := newTestManager(s, f)
 	enqueue(t, m)
@@ -124,6 +126,11 @@ func TestBackupRestoreAndStaleFailedJournalReconciliation(t *testing.T) {
 	defer s.Close()
 	require.NoError(t, s.BindGenesis(genesis, false))
 	require.Error(t, s.BindGenesis(strings.Repeat("cd", 32), true))
+	var restoredCheckpoint chainclient.Checkpoint
+	found, err := s.Get("meta", "rpc_checkpoint", &restoredCheckpoint)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, checkpoint, restoredCheckpoint)
 	m = newTestManager(s, f)
 	m.Satisfied = func(context.Context, Intent, uint64) (bool, error) { return true, nil }
 	require.NoError(t, m.Step(context.Background(), 5))

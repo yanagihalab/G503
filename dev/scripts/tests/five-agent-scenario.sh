@@ -118,6 +118,15 @@ run_five_agent_scenario() {
 
   echo "[auto 5/8] restart same five journals and reconcile the lost acknowledgement"
   if [[ "${G503_RECOVERY_E2E:-0}" == "1" ]]; then restore_all_agents lost-ack lost-ack; fi
+  local endpoints='[]'
+  for i in 1 2 3 4 5; do
+    endpoints="$(jq --arg url "http://127.0.0.1:$((BASE_RPC_PORT+i-1))" '. + [$url]' <<<"$endpoints")"
+  done
+  for i in 1 2 3 4 5; do
+    jq --argjson endpoints "$endpoints" '.rpc_endpoints=$endpoints | .rpc_safety={min_agreement:3,max_block_age_seconds:15,max_height_lag:2}' \
+      "$HOME_DIR/agent$i.json" >"$HOME_DIR/agent$i.pool.json"
+    mv "$HOME_DIR/agent$i.pool.json" "$HOME_DIR/agent$i.json"
+  done
   start_auto_agents second
   local reconciled=0
   for _ in $(seq 1 90); do
@@ -126,7 +135,17 @@ run_five_agent_scenario() {
   done
   [[ "$reconciled" == "1" ]]
 
-  echo "[auto 6/8] process a second transfer using automatically refreshed account sequences"
+  echo "[auto 6/8] stop preferred RPC node1; five agents switch RPC and process a second transfer"
+  local stopped_node="${node_pids[0]}" remaining_nodes=() remaining_pids=()
+  kill -TERM "$stopped_node"
+  wait "$stopped_node" || true
+  for pid in "${node_pids[@]}"; do if [[ "$pid" != "$stopped_node" ]]; then remaining_nodes+=("$pid"); fi; done
+  for pid in "${pids[@]}"; do if [[ "$pid" != "$stopped_node" ]]; then remaining_pids+=("$pid"); fi; done
+  node_pids=("${remaining_nodes[@]}")
+  pids=("${remaining_pids[@]}")
+  local primary_rpc="$RPC_URL" primary_api="$API_URL"
+  RPC_URL="http://127.0.0.1:$((BASE_RPC_PORT+1))"
+  API_URL="http://127.0.0.1:$((BASE_API_PORT+1))"
   auto_send_transfer 7stake "$LOG_DIR/auto-transfer2.json"
   local hash2 case2
   hash2="$(jq -r '.tx_hash' "$LOG_DIR/auto-transfer2.json")"
@@ -139,7 +158,11 @@ run_five_agent_scenario() {
       sleep 1
     done
     [[ "$done" == "1" ]]
+    jq -es --arg failed "$primary_rpc" 'any(.[]; .event == "rpc_broadcast" and .endpoint != $failed)' \
+      "$LOG_DIR/agent$i-second.jsonl" >/dev/null
   done
+  start_node 1 "$LOG_DIR/node1-rpc-restart.log"
+  wait_http "$primary_api/sanction/v1/params" 90
   sleep 3
   stop_auto_agents TERM
   for i in 1 2 3 4 5; do
@@ -172,6 +195,9 @@ run_five_agent_scenario() {
     --arg first "$case1" --arg second "$case2" --arg logs "$LOG_DIR" \
     '{validators:$validators,agents:5,automatic_cases:2,successful_executions:$executions,
       all_agents_sigkill_and_restart:true,lost_execute_ack_reconciled:true,duplicate_executions:0,
+      rpc_pool_endpoints:5,rpc_min_agreement:3,preferred_rpc_node_stopped_and_recovered:true,
       balances_restored:true,cases:[$first,$second],logs:$logs}' >"$LOG_DIR/autonomous-metrics.json"
   cat "$LOG_DIR/autonomous-metrics.json"
+  RPC_URL="$primary_rpc"
+  API_URL="$primary_api"
 }

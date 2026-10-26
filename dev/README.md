@@ -275,3 +275,24 @@ back, a missing known-version index is rebuilt and unknown versions are rejected
 Legacy backups restore normally and migrate on open; new backups also validate
 index membership. Never write a migrated journal with an older binary. Keep an
 offline backup before deployment and use a matching backup for rollback.
+
+## Guarded RPC and Five-Host Fault Runs
+
+Resident daemons accept `rpc_endpoints` and `rpc_safety` in their existing JSON
+config. They validate fresh, nonsyncing, continuous common history before lease
+or business broadcasts and persist `meta/rpc_checkpoint`. Quorum does not shrink
+on endpoint failure; an ambiguous send is reconciled by the journal, not blindly
+replayed to another RPC. Legacy one-shot/watch clients remain single-RPC.
+See the root README for default bounds and CLI flags. RPC agreement is not
+cryptographic light-client verification.
+
+The five-agent E2E now restarts with five endpoints, stops node1 during the next
+transfer and verifies that all five agents broadcast through other RPCs before
+the node rejoins. Its metrics include `rpc_pool_endpoints`, `rpc_min_agreement`
+and `preferred_rpc_node_stopped_and_recovered`.
+
+[Five-host runbook](README.multihost.md) describes the opt-in real SSH runner,
+inventory, 4:1 / 3:2 partitions, all-node restart, convergence and scoped cleanup.
+The default `g503-multihost` CLI only plans; real hosts remain unverified until
+an explicit executed run with valid host details succeeds. Go tests use simulated
+SSH/firewall commands and do not claim real-host success.

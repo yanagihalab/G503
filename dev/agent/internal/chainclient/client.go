@@ -20,6 +20,7 @@ type Client struct {
 	Endpoint   string
 	HTTPClient *http.Client
 	nextID     uint64
+	pool       *rpcPool
 }
 
 type RPCResponse struct {
@@ -107,6 +108,9 @@ func (c *Client) BroadcastTxSync(ctx context.Context, tx []byte) (BroadcastResul
 }
 
 func (c *Client) rpc(ctx context.Context, method string, params any) (json.RawMessage, error) {
+	if c.pool != nil {
+		return c.pool.call(ctx, method, params)
+	}
 	id := atomic.AddUint64(&c.nextID, 1)
 	payload := map[string]any{
 		"jsonrpc": "2.0",

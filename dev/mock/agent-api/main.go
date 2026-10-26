@@ -78,7 +78,7 @@ type evaluateResponse struct {
 func main() {
 	addr := flag.String("listen", "127.0.0.1:8083", "listen address")
 	latency := flag.Duration("latency", 0, "artificial processing latency")
-	apiToken := flag.String("api-token", "", "optional bearer token required for API requests")
+	apiToken := flag.String("api-token", os.Getenv("G503_AGENT_API_TOKEN"), "optional bearer token; defaults to G503_AGENT_API_TOKEN")
 	allowedRoles := flag.String("allowed-roles", "validator-agent,operator", "comma-separated accepted X-Agent-Role values; empty disables role checks")
 	rateLimit := flag.Int("rate-limit-per-minute", 120, "maximum evaluate requests per minute; 0 disables rate limiting")
 	maxBodyBytes := flag.Int64("max-body-bytes", 1048576, "maximum JSON request body size")

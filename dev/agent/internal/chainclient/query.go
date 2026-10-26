@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cometbft/cometbft/crypto/tmhash"
 
@@ -21,8 +22,12 @@ import (
 )
 
 type Status struct {
-	ChainID string
-	Height  uint64
+	ChainID    string
+	Height     uint64
+	BlockHash  string
+	BlockTime  time.Time
+	CatchingUp bool
+	syncKnown  bool
 }
 
 type Account struct {
@@ -56,7 +61,10 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 			Network string `json:"network"`
 		} `json:"node_info"`
 		Sync struct {
-			Height string `json:"latest_block_height"`
+			Height     string    `json:"latest_block_height"`
+			Hash       string    `json:"latest_block_hash"`
+			Time       time.Time `json:"latest_block_time"`
+			CatchingUp *bool     `json:"catching_up"`
 		} `json:"sync_info"`
 	}
 	if err = json.Unmarshal(raw, &wire); err != nil {
@@ -66,7 +74,11 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 	if err != nil || wire.Node.Network == "" {
 		return Status{}, fmt.Errorf("invalid node status")
 	}
-	return Status{ChainID: wire.Node.Network, Height: h}, nil
+	status := Status{ChainID: wire.Node.Network, Height: h, BlockHash: wire.Sync.Hash, BlockTime: wire.Sync.Time, syncKnown: wire.Sync.CatchingUp != nil}
+	if wire.Sync.CatchingUp != nil {
+		status.CatchingUp = *wire.Sync.CatchingUp
+	}
+	return status, nil
 }
 
 // Query pins reads to a committed height, keeping account and semantic checks consistent.

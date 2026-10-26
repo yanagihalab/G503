@@ -649,6 +649,68 @@ CI と SSH runner の `checks` / `all` に標準 vet・全 race テストを組�
 これはローカル process / mock service による検証であり、実 SSH 複数 host や本番サービス、
 GitHub CI の実行成功を示すものではない。
 
+### RPC 鮮度判定と複数 RPC 切替
+
+常駐 `-daemon` の chain query、pending tx 監視、lease 更新、signed tx 送信を
+共通の RPC pool に統合した。従来の単発 CLI / `-watch` は単一 RPC のままであり、
+すべての CLI にこの保護が適用されるわけではない。
+
+既存 agent JSON config に以下を追加する。リスト省略時も `rpc_url` 1台を検証する。
+
+```json
+{
+  "rpc_endpoints": ["http://node1:26657", "http://node2:26657", "http://node3:26657"],
+  "rpc_safety": {
+    "max_block_age_seconds": 15,
+    "max_future_skew_seconds": 3,
+    "max_height_lag": 2,
+    "min_agreement": 2,
+    "probe_timeout_seconds": 3
+  }
+}
+```
+
+CLI は `-rpc-endpoints`、`-rpc-max-block-age`、`-rpc-max-future-skew`、
+`-rpc-max-height-lag`、`-rpc-min-agreement`、`-rpc-probe-timeout` に対応する。
+一致数の既定値は設定済み endpoint の過半数で、障害時に自動で引き下げない。
+
+- chain ID / genesis、block 時刻、未来時刻の許容差、同期中状態、高さ後退、高さの遅れを確認する。
+- 共通 height の block hash が必要数一致した場合のみ、その履歴に固定して読み取る。
+- 共通 height / hash / genesis を journal の `meta/rpc_checkpoint` に保存してから送信する。
+  再起動・backup / restore 後も保持し、同一 genesis の履歴差替えを拒否する。
+- 保存中に鮮度期限を超えた場合も送信しない。RPC 選択・送信は JSON event に記録する。
+- broadcast 応答消失時に別 RPC へ即再送せず、既存の永続送信管理で確定・sequence・効果を照合する。
+
+これは信頼する RPC 群の整合性チェックであり、暗号学的な light client 検証ではない。
+独立した接続先・時刻同期・checkpoint block の保持が必要で、悪意ある過半数や
+checkpoint より先まで prune された RPC に対する可用性は保証しない。
+
+### 5 ホスト障害 E2E の実行基盤
+
+新しい `g503-multihost` は、push 済みの同一 commit で Linux 5台を初期化し、
+5 validator / 5 agent を起動する。既定は plan 表示のみで SSH 接続しない。
+
+```bash
+go run ./dev/agent/cmd/g503-multihost \
+  -inventory dev/multihost.example.json -revision "$(git rev-parse HEAD)"
+```
+
+実行には `-execute` と未使用の `-results` を明示する。設定例の IP / SHA はダミーのため、
+実ホスト情報に置き換える。[5ホスト手順書](dev/README.multihost.md) に前提・実行・復旧をまとめた。
+4:1 分断と再接続、3:2 停止時の送信抑止、全5ノード再起動、重複返還なし・5票・残高復元、
+共通 block hash への収束を検査する。実験専用の所有者マーカー / PID / firewall chain のみを
+操作し、全体 flush や秘密鍵の回収は行わない。
+
+controller 模擬試験・worker の firewall 代替試験・SSH を使わない plan を CI に組み込んだ。
+既存のローカル5 validator / 5 agent E2E には、優先 RPC の node1 停止中に全5 agent が
+残り RPC へ切替え、制裁完了後に node1 を復帰させる試験も追加した。
+**接続情報未提供のため、実SSH 5台・実firewall分断は未実行である。** risk / LLM も mock を用いる。
+
+今回まず検証済み状態を `3243c82` として push し、
+[GitHub CI run 40266240640](https://github.com/yanagihalab/G503/actions/runs/40266240640)
+の両 job 成功を確認した。以前の「GitHub CI 未確認」はこの checkpoint について解消済みであり、
+実5ホストの検証成功を意味しない。
+
 ## 評価指標
 
 初期評価では次を見る。

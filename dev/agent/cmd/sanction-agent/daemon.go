@@ -39,14 +39,15 @@ type daemonWork struct {
 }
 
 type daemon struct {
-	opts    processOptions
-	rpc     *chainclient.Client
-	store   *txmanager.Store
-	manager *txmanager.Manager
-	signer  signer.Signer
-	encoder *json.Encoder
-	limit   int
-	owner   *ownership.Session
+	opts        processOptions
+	rpc         *chainclient.Client
+	store       *txmanager.Store
+	manager     *txmanager.Manager
+	signer      signer.Signer
+	encoder     *json.Encoder
+	limit       int
+	owner       *ownership.Session
+	rpcEndpoint string
 }
 
 func autoCaseID(hash string) string { return "auto-" + strings.ToUpper(hash) }
@@ -65,30 +66,51 @@ func runDaemon(ctx context.Context, opts processOptions, stateDir string, startH
 	if err != nil {
 		return err
 	}
-	rpc := chainclient.New(opts.rpcURL, 10*time.Second)
-	status, err := rpc.Status(ctx)
-	if err != nil {
-		return err
-	}
-	if status.ChainID != opts.chainID {
-		return fmt.Errorf("RPC chain ID mismatch")
-	}
-	genesis, err := rpc.GenesisHash(ctx, opts.chainID)
-	if err != nil {
-		return err
-	}
-	if opts.genesisBinding != "" && opts.genesisBinding != genesis {
-		return fmt.Errorf("trusted genesis hash mismatch")
-	}
 	store, err := txmanager.Open(filepath.Join(stateDir, "agent.db"), journalIdentity(opts, s))
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	policy := opts.rpcSafety
+	encoder := json.NewEncoder(writer)
+	policy.OnBroadcast = func(cp chainclient.Checkpoint, endpoint string) {
+		_ = encoder.Encode(map[string]any{"event": "rpc_broadcast", "endpoint": endpoint, "checkpoint_height": cp.Height})
+	}
+	policy.ChainID = opts.chainID
+	var savedGenesis string
+	if _, err = store.Get("meta", "genesis_hash", &savedGenesis); err != nil {
+		return err
+	}
+	policy.GenesisHash = savedGenesis
+	if opts.genesisBinding != "" {
+		if savedGenesis != "" && savedGenesis != opts.genesisBinding {
+			return fmt.Errorf("trusted genesis hash mismatch")
+		}
+		policy.GenesisHash = opts.genesisBinding
+	}
+	if _, err = store.Get("meta", "rpc_checkpoint", &policy.Checkpoint); err != nil {
+		return err
+	}
+	policy.Persist = func(cp chainclient.Checkpoint) error { return store.Put("meta", "rpc_checkpoint", cp) }
+	endpoints := opts.rpcEndpoints
+	if len(endpoints) == 0 {
+		endpoints = []string{opts.rpcURL}
+	}
+	rpc, err := chainclient.NewResilient(endpoints, 10*time.Second, policy)
+	if err != nil {
+		return err
+	}
+	status, err := rpc.Status(ctx)
+	if err != nil {
+		return err
+	}
+	checkpoint, endpoint := rpc.RPCObservation()
+	genesis := checkpoint.GenesisHash
 	if err = store.BindGenesis(genesis, opts.genesisBinding != ""); err != nil {
 		return err
 	}
-	d := &daemon{opts: opts, rpc: rpc, store: store, signer: s, encoder: json.NewEncoder(writer), limit: limit}
+	d := &daemon{opts: opts, rpc: rpc, store: store, signer: s, encoder: encoder, limit: limit, rpcEndpoint: endpoint}
+	d.event("rpc_selected", map[string]any{"endpoint": endpoint, "checkpoint_height": checkpoint.Height, "checkpoint_hash": checkpoint.BlockHash})
 	fee, err := sdk.ParseCoinsNormalized(opts.fee)
 	if err != nil {
 		return err
@@ -378,18 +400,23 @@ func (d *daemon) tick(ctx context.Context) error {
 		return nil
 	}
 	h := status.Height
+	checkpoint, endpoint := d.rpc.RPCObservation()
+	if endpoint != d.rpcEndpoint {
+		d.rpcEndpoint = endpoint
+		d.event("rpc_selected", map[string]any{"endpoint": endpoint, "checkpoint_height": checkpoint.Height, "checkpoint_hash": checkpoint.BlockHash})
+	}
 	if h > ^uint64(0)-(d.opts.expiryHeight-d.opts.height) {
 		return fmt.Errorf("report expiry height overflows")
 	}
 	if err = d.scan(ctx, h); err != nil {
 		return err
 	}
-	pending, err := watcher.New(d.opts.rpcURL, 10*time.Second).UnconfirmedTxs(ctx, d.limit)
+	pending, err := d.rpc.PendingTransactions(ctx, d.limit)
 	if err != nil {
 		return err
 	}
 	for _, tx := range pending {
-		if err = d.observe(tx, h); err != nil {
+		if err = d.observe(watcher.PendingTx{Bytes: tx, Hash: hex.EncodeToString(keeper.TxHash(tx))}, h); err != nil {
 			d.event("decode_error", map[string]any{"error": err.Error()})
 		}
 	}

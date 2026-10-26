@@ -25,3 +25,15 @@ func TestReadKeyFileRejectsSharedOrMissingKeys(t *testing.T) {
 		t.Fatal("world-readable private key accepted")
 	}
 }
+
+func TestLoadRPCPoolAndStrictZeroHeightLag(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	err := os.WriteFile(path, []byte(`{"rpc_endpoints":["http://a:26657","http://b:26657","http://c:26657"],"rpc_safety":{"max_block_age_seconds":15,"max_future_skew_seconds":3,"max_height_lag":0,"min_agreement":2,"probe_timeout_seconds":3}}`), 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil || len(cfg.RPCEndpoints) != 3 || cfg.RPCSafety.MaxHeightLag == nil || *cfg.RPCSafety.MaxHeightLag != 0 || cfg.RPCSafety.MinAgreement != 2 {
+		t.Fatalf("pool config not preserved: %+v, %v", cfg.RPCSafety, err)
+	}
+}
