@@ -8,7 +8,7 @@ import (
 
 func TestComputePolicyActionDowncastsPreFinalityTxToBlock(t *testing.T) {
 	params := types.DefaultParams()
-	reports := []types.RiskReport{{
+	reports := []*types.RiskReport{{
 		RiskScore:      92,
 		RiskCategories: []string{"money_laundering"},
 	}}
@@ -21,7 +21,7 @@ func TestComputePolicyActionDowncastsPreFinalityTxToBlock(t *testing.T) {
 
 func TestComputePolicyActionRequiresHighRiskCategory(t *testing.T) {
 	params := types.DefaultParams()
-	reports := []types.RiskReport{{
+	reports := []*types.RiskReport{{
 		RiskScore:      95,
 		RiskCategories: []string{"unknown"},
 	}}

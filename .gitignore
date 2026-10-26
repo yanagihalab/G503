@@ -1,0 +1,5 @@
+.g503/
+.gocache/
+ssh-results/
+agent.db
+/backups/

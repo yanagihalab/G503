@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/binary"
 
-	"cosmossdk.io/log"
-	storetypes "cosmossdk.io/store/types"
+	"cosmossdk.io/log/v2"
+	storetypes "github.com/cosmos/cosmos-sdk/store/v2/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/yanagihalab/G503/x/sanction/types"
@@ -36,7 +36,10 @@ func (k Keeper) WithBankKeeper(bankKeeper BankKeeper) Keeper {
 	return k
 }
 
-func (k Keeper) GetAuthority() string {
+func (k Keeper) GetAuthority(ctx sdk.Context) string {
+	if address := k.Store(ctx).Get(types.AuthorityKey); len(address) > 0 {
+		return string(address)
+	}
 	return k.authority
 }
 

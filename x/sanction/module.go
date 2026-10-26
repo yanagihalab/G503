@@ -41,11 +41,11 @@ func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
 }
 
 func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, _ client.TxEncodingConfig, bz json.RawMessage) error {
-	var genesis types.GenesisState
-	if err := cdc.UnmarshalJSON(bz, &genesis); err != nil {
+	var genesis = &types.GenesisState{}
+	if err := cdc.UnmarshalJSON(bz, genesis); err != nil {
 		return err
 	}
-	return types.ValidateGenesis(&genesis)
+	return types.ValidateGenesis(genesis)
 }
 
 func (AppModuleBasic) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *runtime.ServeMux) {
@@ -90,9 +90,9 @@ func (am AppModule) RegisterServices(cfg module.Configurator) {
 }
 
 func (am AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, bz json.RawMessage) {
-	var genesis types.GenesisState
-	cdc.MustUnmarshalJSON(bz, &genesis)
-	am.keeper.InitGenesis(ctx, &genesis)
+	var genesis = &types.GenesisState{}
+	cdc.MustUnmarshalJSON(bz, genesis)
+	am.keeper.InitGenesis(ctx, genesis)
 }
 
 func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.RawMessage {

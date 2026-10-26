@@ -30,4 +30,9 @@ message GenesisState {
   repeated ActiveSanction active_sanctions = 6 [(gogoproto.nullable) = false];
   repeated FreezeRecord frozen_addresses = 7 [(gogoproto.nullable) = false];
   repeated ExecutionRecord execution_records = 8 [(gogoproto.nullable) = false];
+  string authority = 9;
+  repeated OriginalTransfer original_transfers = 10;
+  repeated SettlementRecord settlements = 11;
+  repeated ReviewRecord reviews = 12;
+  repeated AgentLease agent_leases = 13;
 }

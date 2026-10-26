@@ -22,4 +22,8 @@ var (
 	ErrExecutionUnsupported = errors.Register(ModuleName, 18, "execution unsupported")
 	ErrUnauthorized         = errors.Register(ModuleName, 19, "unauthorized")
 	ErrInvalidCase          = errors.Register(ModuleName, 20, "invalid sanction case")
+	ErrOriginalTransfer     = errors.Register(ModuleName, 21, "original successful transfer not found or mismatched")
+	ErrAlreadySettled       = errors.Register(ModuleName, 22, "original transfer already settled")
+	ErrReviewRequired       = errors.Register(ModuleName, 23, "approved false-positive review required")
+	ErrLeaseFenced          = errors.Register(ModuleName, 24, "agent lease fencing rejected stale, missing or expired ownership")
 )

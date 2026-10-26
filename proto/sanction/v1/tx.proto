@@ -17,8 +17,20 @@ service Msg {
   rpc SubmitSanctionVote(MsgSubmitSanctionVote) returns (MsgSubmitSanctionVoteResponse);
   rpc ExecuteSanction(MsgExecuteSanction) returns (MsgExecuteSanctionResponse);
   rpc RevokeSanction(MsgRevokeSanction) returns (MsgRevokeSanctionResponse);
+  rpc ReviewSanction(MsgReviewSanction) returns (MsgReviewSanctionResponse);
   rpc UpdateParams(MsgUpdateParams) returns (MsgUpdateParamsResponse);
+  rpc ClaimAgentLease(MsgClaimAgentLease) returns (MsgClaimAgentLeaseResponse);
 }
+
+message MsgClaimAgentLease {
+  option (cosmos.msg.v1.signer) = "signer_address";
+  string signer_address = 1;
+  string holder_id = 2;
+  uint64 expected_epoch = 3;
+  uint64 ttl_blocks = 4;
+  bool renew = 5;
+}
+message MsgClaimAgentLeaseResponse { AgentLease lease = 1; }
 
 message MsgRegisterAgent {
   option (cosmos.msg.v1.signer) = "authority";
@@ -51,6 +63,7 @@ message MsgOpenSanctionCase {
   SanctionAction requested_action = 6;
   repeated string report_ids = 7;
   string policy_version = 8;
+  string previous_case_id = 9;
 }
 
 message MsgOpenSanctionCaseResponse {
@@ -90,6 +103,16 @@ message MsgRevokeSanction {
 }
 
 message MsgRevokeSanctionResponse {}
+
+message MsgReviewSanction {
+  option (cosmos.msg.v1.signer) = "authority";
+  string authority = 1;
+  string case_id = 2;
+  string reason = 3;
+  bytes evidence_hash = 4;
+}
+
+message MsgReviewSanctionResponse {}
 
 message MsgUpdateParams {
   option (cosmos.msg.v1.signer) = "authority";

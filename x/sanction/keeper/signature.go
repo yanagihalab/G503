@@ -6,11 +6,12 @@ import (
 	"encoding/binary"
 
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/yanagihalab/G503/x/sanction/types"
 )
 
-func VoteSignBytes(chainID string, vote types.SanctionVote) []byte {
+func VoteSignBytes(chainID string, vote *types.SanctionVote) []byte {
 	var out bytes.Buffer
 	writeString(&out, chainID)
 	writeString(&out, types.ModuleName)
@@ -33,13 +34,13 @@ func EvidenceHashStrings(parts ...string) []byte {
 	return h.Sum(nil)
 }
 
-func RiskReportSignBytes(chainID string, report types.RiskReport) []byte {
-	copyReport := report
+func RiskReportSignBytes(chainID string, report *types.RiskReport) []byte {
+	copyReport := proto.Clone(report).(*types.RiskReport)
 	copyReport.SubmitterSignature = nil
 	var out bytes.Buffer
 	writeString(&out, chainID)
 	writeString(&out, types.ModuleName)
-	writeBytes(&out, types.ModuleCdc.MustMarshal(&copyReport))
+	writeBytes(&out, types.ModuleCdc.MustMarshal(copyReport))
 	return out.Bytes()
 }
 

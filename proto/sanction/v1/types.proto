@@ -33,6 +33,7 @@ message RiskReport {
   bytes llm_rationale_hash = 16;
   string submitter = 17;
   bytes submitter_signature = 18;
+  uint32 message_index = 19;
 }
 
 message SanctionCase {
@@ -48,6 +49,19 @@ message SanctionCase {
   uint64 executed_height = 10;
   string policy_version = 11;
   bytes decision_hash = 12;
+  string previous_case_id = 13;
+  repeated AgentInfo voters = 14;
+  uint32 quorum_threshold = 15;
+  bool unanimous_required_for_revert = 16;
+  uint32 voting_snapshot_version = 17;
+}
+
+// A monotonic fencing epoch survives expiry, restart and genesis export.
+message AgentLease {
+  string signer_address = 1;
+  string holder_id = 2;
+  uint64 epoch = 3;
+  uint64 expires_height = 4;
 }
 
 enum SanctionTargetType {
@@ -117,4 +131,34 @@ message ExecutionRecord {
   string result_code = 7;
   string result_message = 8;
   bytes state_change_hash = 9;
+}
+
+// Written only after successful execution of the entire original transaction.
+message OriginalTransfer {
+  bytes tx_hash = 1;
+  uint32 message_index = 2;
+  string sender = 3;
+  string recipient = 4;
+  string denom = 5;
+  string amount = 6;
+  uint64 height = 7;
+}
+
+// Shared by revert and escrow: a transfer coin can be settled only once.
+message SettlementRecord {
+  OriginalTransfer transfer = 1;
+  string case_id = 2;
+  SanctionAction action = 3;
+  uint64 executed_height = 4;
+}
+
+// An authority-signed acceptance of a false-positive review, retained after revoke.
+message ReviewRecord {
+  string case_id = 1;
+  string authority = 2;
+  string reason = 3;
+  bytes evidence_hash = 4;
+  uint64 reviewed_height = 5;
+  uint64 revoked_height = 6;
+  string revoke_reason = 7;
 }

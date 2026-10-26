@@ -4,9 +4,10 @@ import (
 	"crypto/sha256"
 
 	"github.com/yanagihalab/G503/x/sanction/types"
+	"google.golang.org/protobuf/proto"
 )
 
-func ComputePolicyAction(reports []types.RiskReport, params types.Params, targetType types.SanctionTargetType) types.SanctionAction {
+func ComputePolicyAction(reports []*types.RiskReport, params *types.Params, targetType types.SanctionTargetType) types.SanctionAction {
 	maxScore := uint32(0)
 	highRisk := false
 	for _, report := range reports {
@@ -49,10 +50,10 @@ func ComputePolicyAction(reports []types.RiskReport, params types.Params, target
 	return action
 }
 
-func DecisionHash(sanctionCase types.SanctionCase) []byte {
-	copyCase := sanctionCase
+func DecisionHash(sanctionCase *types.SanctionCase) []byte {
+	copyCase := proto.Clone(sanctionCase).(*types.SanctionCase)
 	copyCase.DecisionHash = nil
-	sum := sha256.Sum256(types.ModuleCdc.MustMarshal(&copyCase))
+	sum := sha256.Sum256(types.ModuleCdc.MustMarshal(copyCase))
 	return sum[:]
 }
 
@@ -65,7 +66,7 @@ func stringInSlice(value string, values []string) bool {
 	return false
 }
 
-func actionAllowed(action types.SanctionAction, params types.Params) bool {
+func actionAllowed(action types.SanctionAction, params *types.Params) bool {
 	for _, allowed := range params.AllowedActions {
 		if action == allowed {
 			return true

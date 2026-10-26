@@ -12,6 +12,8 @@ import (
 
 type Client struct {
 	Endpoint   string
+	Provider   string
+	APIKey     string
 	HTTPClient *http.Client
 }
 
@@ -37,10 +39,18 @@ type RiskResponse struct {
 func New(endpoint string, timeout time.Duration) Client {
 	return Client{
 		Endpoint: strings.TrimRight(endpoint, "/"),
+		Provider: "mock",
 		HTTPClient: &http.Client{
 			Timeout: timeout,
 		},
 	}
+}
+
+func NewWithProvider(endpoint string, provider string, apiKey string, timeout time.Duration) Client {
+	client := New(endpoint, timeout)
+	client.Provider = provider
+	client.APIKey = apiKey
+	return client
 }
 
 func (c Client) AddressRisk(ctx context.Context, address string) (RiskResponse, error) {
@@ -56,6 +66,9 @@ func (c Client) AddressRisk(ctx context.Context, address string) (RiskResponse, 
 }
 
 func (c Client) ScreenTx(ctx context.Context, screen TxScreenRequest) (RiskResponse, error) {
+	if c.Provider == "chainalysis" {
+		return c.screenChainalysis(ctx, screen)
+	}
 	var response RiskResponse
 	body, err := json.Marshal(screen)
 	if err != nil {
@@ -67,6 +80,28 @@ func (c Client) ScreenTx(ctx context.Context, screen TxScreenRequest) (RiskRespo
 	}
 	req.Header.Set("Content-Type", "application/json")
 	return c.do(req)
+}
+
+func (c Client) screenChainalysis(ctx context.Context, screen TxScreenRequest) (RiskResponse, error) {
+	if screen.Recipient == "" {
+		return RiskResponse{}, fmt.Errorf("recipient is required")
+	}
+	if c.APIKey == "" {
+		return RiskResponse{}, fmt.Errorf("chainalysis API key is required")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.Endpoint+"/v1/address/"+screen.Recipient+"/risk", nil)
+	if err != nil {
+		return RiskResponse{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	response, err := c.do(req)
+	if err != nil {
+		return response, err
+	}
+	response.Source = "chainalysis"
+	response.Address = screen.Recipient
+	response.TxHash = screen.TxHash
+	return response, nil
 }
 
 func (c Client) do(req *http.Request) (RiskResponse, error) {

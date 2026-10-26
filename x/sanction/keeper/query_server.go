@@ -10,10 +10,38 @@ import (
 
 var _ types.QueryServer = Keeper{}
 
+func (k Keeper) Authority(goCtx context.Context, _ *types.QueryAuthorityRequest) (*types.QueryAuthorityResponse, error) {
+	return &types.QueryAuthorityResponse{Authority: k.GetAuthority(sdk.UnwrapSDKContext(goCtx))}, nil
+}
+
+func (k Keeper) OriginalTransfers(goCtx context.Context, req *types.QueryOriginalTransfersRequest) (*types.QueryOriginalTransfersResponse, error) {
+	hash, err := parseHexHash(req.TxHash)
+	if err != nil || len(hash) != 32 {
+		return nil, types.ErrOriginalTransfer
+	}
+	return &types.QueryOriginalTransfersResponse{Transfers: k.GetOriginalTransfers(sdk.UnwrapSDKContext(goCtx), hash)}, nil
+}
+
+func (k Keeper) Settlements(goCtx context.Context, req *types.QuerySettlementsRequest) (*types.QuerySettlementsResponse, error) {
+	hash, err := parseHexHash(req.TxHash)
+	if err != nil || len(hash) != 32 {
+		return nil, types.ErrOriginalTransfer
+	}
+	return &types.QuerySettlementsResponse{Settlements: k.GetSettlements(sdk.UnwrapSDKContext(goCtx), hash)}, nil
+}
+
+func (k Keeper) Review(goCtx context.Context, req *types.QueryReviewRequest) (*types.QueryReviewResponse, error) {
+	r, found := k.GetReview(sdk.UnwrapSDKContext(goCtx), req.CaseId)
+	if !found {
+		return nil, types.ErrReviewRequired
+	}
+	return &types.QueryReviewResponse{Review: r}, nil
+}
+
 func (k Keeper) Params(goCtx context.Context, _ *types.QueryParamsRequest) (*types.QueryParamsResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 	params := k.GetParams(ctx)
-	return &types.QueryParamsResponse{Params: &params}, nil
+	return &types.QueryParamsResponse{Params: params}, nil
 }
 
 func (k Keeper) Agent(goCtx context.Context, req *types.QueryAgentRequest) (*types.QueryAgentResponse, error) {
@@ -22,7 +50,7 @@ func (k Keeper) Agent(goCtx context.Context, req *types.QueryAgentRequest) (*typ
 	if !found {
 		return nil, types.ErrAgentNotFound
 	}
-	return &types.QueryAgentResponse{Agent: &agent}, nil
+	return &types.QueryAgentResponse{Agent: agent}, nil
 }
 
 func (k Keeper) Agents(goCtx context.Context, _ *types.QueryAgentsRequest) (*types.QueryAgentsResponse, error) {
@@ -36,7 +64,7 @@ func (k Keeper) RiskReport(goCtx context.Context, req *types.QueryRiskReportRequ
 	if !found {
 		return nil, types.ErrRiskReportNotFound
 	}
-	return &types.QueryRiskReportResponse{Report: &report}, nil
+	return &types.QueryRiskReportResponse{Report: report}, nil
 }
 
 func (k Keeper) RiskReportsByTx(goCtx context.Context, req *types.QueryRiskReportsByTxRequest) (*types.QueryRiskReportsByTxResponse, error) {
@@ -54,7 +82,7 @@ func (k Keeper) SanctionCase(goCtx context.Context, req *types.QuerySanctionCase
 	if !found {
 		return nil, types.ErrCaseNotFound
 	}
-	return &types.QuerySanctionCaseResponse{SanctionCase: &sanctionCase}, nil
+	return &types.QuerySanctionCaseResponse{SanctionCase: sanctionCase}, nil
 }
 
 func (k Keeper) SanctionCasesByTx(goCtx context.Context, req *types.QuerySanctionCasesByTxRequest) (*types.QuerySanctionCasesByTxResponse, error) {
@@ -81,7 +109,7 @@ func (k Keeper) ActiveTxSanction(goCtx context.Context, req *types.QueryActiveTx
 	if !found {
 		return nil, types.ErrCaseNotFound
 	}
-	return &types.QueryActiveTxSanctionResponse{Sanction: &sanction}, nil
+	return &types.QueryActiveTxSanctionResponse{Sanction: sanction}, nil
 }
 
 func (k Keeper) FrozenAddress(goCtx context.Context, req *types.QueryFrozenAddressRequest) (*types.QueryFrozenAddressResponse, error) {
@@ -90,7 +118,7 @@ func (k Keeper) FrozenAddress(goCtx context.Context, req *types.QueryFrozenAddre
 	if !found {
 		return nil, types.ErrCaseNotFound
 	}
-	return &types.QueryFrozenAddressResponse{Freeze: &freeze}, nil
+	return &types.QueryFrozenAddressResponse{Freeze: freeze}, nil
 }
 
 func (k Keeper) ExecutionRecord(goCtx context.Context, req *types.QueryExecutionRecordRequest) (*types.QueryExecutionRecordResponse, error) {
@@ -99,5 +127,5 @@ func (k Keeper) ExecutionRecord(goCtx context.Context, req *types.QueryExecution
 	if !found {
 		return nil, types.ErrCaseNotFound
 	}
-	return &types.QueryExecutionRecordResponse{Record: &record}, nil
+	return &types.QueryExecutionRecordResponse{Record: record}, nil
 }

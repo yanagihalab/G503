@@ -31,7 +31,12 @@ type txScreenRequest struct {
 
 func main() {
 	addr := flag.String("listen", "127.0.0.1:8081", "listen address")
+	highRiskAddresses := flag.String("high-risk-addresses", "", "comma-separated addresses to classify as high risk")
+	highRiskScore := flag.Uint("high-risk-score", 86, "risk score for explicitly high-risk addresses")
+	highRiskCategories := flag.String("high-risk-categories", "scam", "comma-separated risk categories for explicitly high-risk addresses")
 	flag.Parse()
+	configureHighRiskAddresses(*highRiskAddresses)
+	configureExplicitRisk(uint32(*highRiskScore), *highRiskCategories)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/address/", handleAddressRisk)
@@ -79,6 +84,10 @@ func classify(key string, txHash string, address string) riskResponse {
 	exposure := "none"
 	lower := strings.ToLower(key)
 	switch {
+	case highRiskAddressSet[lower]:
+		score = explicitRiskScore
+		categories = explicitRiskCategories
+		exposure = "direct"
 	case strings.Contains(lower, "sanction"):
 		score = 98
 		categories = []string{"sanctioned", "money_laundering"}
@@ -105,6 +114,35 @@ func classify(key string, txHash string, address string) riskResponse {
 		RiskCategories: categories,
 		ExposureType:   exposure,
 		UpdatedAt:      time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
+var highRiskAddressSet = map[string]bool{}
+var explicitRiskScore = uint32(86)
+var explicitRiskCategories = []string{"scam"}
+
+func configureHighRiskAddresses(addresses string) {
+	for _, address := range strings.Split(addresses, ",") {
+		address = strings.ToLower(strings.TrimSpace(address))
+		if address == "" {
+			continue
+		}
+		highRiskAddressSet[address] = true
+	}
+}
+
+func configureExplicitRisk(score uint32, categories string) {
+	explicitRiskScore = score
+	explicitRiskCategories = []string{}
+	for _, category := range strings.Split(categories, ",") {
+		category = strings.TrimSpace(category)
+		if category == "" {
+			continue
+		}
+		explicitRiskCategories = append(explicitRiskCategories, category)
+	}
+	if len(explicitRiskCategories) == 0 {
+		explicitRiskCategories = []string{"scam"}
 	}
 }
 

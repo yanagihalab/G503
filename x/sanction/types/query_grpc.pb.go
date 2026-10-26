@@ -19,6 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	Query_AgentLease_FullMethodName        = "/sanction.v1.Query/AgentLease"
+	Query_Authority_FullMethodName         = "/sanction.v1.Query/Authority"
+	Query_OriginalTransfers_FullMethodName = "/sanction.v1.Query/OriginalTransfers"
+	Query_Settlements_FullMethodName       = "/sanction.v1.Query/Settlements"
+	Query_Review_FullMethodName            = "/sanction.v1.Query/Review"
 	Query_Params_FullMethodName            = "/sanction.v1.Query/Params"
 	Query_Agent_FullMethodName             = "/sanction.v1.Query/Agent"
 	Query_Agents_FullMethodName            = "/sanction.v1.Query/Agents"
@@ -36,6 +41,11 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type QueryClient interface {
+	AgentLease(ctx context.Context, in *QueryAgentLeaseRequest, opts ...grpc.CallOption) (*QueryAgentLeaseResponse, error)
+	Authority(ctx context.Context, in *QueryAuthorityRequest, opts ...grpc.CallOption) (*QueryAuthorityResponse, error)
+	OriginalTransfers(ctx context.Context, in *QueryOriginalTransfersRequest, opts ...grpc.CallOption) (*QueryOriginalTransfersResponse, error)
+	Settlements(ctx context.Context, in *QuerySettlementsRequest, opts ...grpc.CallOption) (*QuerySettlementsResponse, error)
+	Review(ctx context.Context, in *QueryReviewRequest, opts ...grpc.CallOption) (*QueryReviewResponse, error)
 	Params(ctx context.Context, in *QueryParamsRequest, opts ...grpc.CallOption) (*QueryParamsResponse, error)
 	Agent(ctx context.Context, in *QueryAgentRequest, opts ...grpc.CallOption) (*QueryAgentResponse, error)
 	Agents(ctx context.Context, in *QueryAgentsRequest, opts ...grpc.CallOption) (*QueryAgentsResponse, error)
@@ -55,6 +65,56 @@ type queryClient struct {
 
 func NewQueryClient(cc grpc.ClientConnInterface) QueryClient {
 	return &queryClient{cc}
+}
+
+func (c *queryClient) AgentLease(ctx context.Context, in *QueryAgentLeaseRequest, opts ...grpc.CallOption) (*QueryAgentLeaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryAgentLeaseResponse)
+	err := c.cc.Invoke(ctx, Query_AgentLease_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryClient) Authority(ctx context.Context, in *QueryAuthorityRequest, opts ...grpc.CallOption) (*QueryAuthorityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryAuthorityResponse)
+	err := c.cc.Invoke(ctx, Query_Authority_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryClient) OriginalTransfers(ctx context.Context, in *QueryOriginalTransfersRequest, opts ...grpc.CallOption) (*QueryOriginalTransfersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryOriginalTransfersResponse)
+	err := c.cc.Invoke(ctx, Query_OriginalTransfers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryClient) Settlements(ctx context.Context, in *QuerySettlementsRequest, opts ...grpc.CallOption) (*QuerySettlementsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuerySettlementsResponse)
+	err := c.cc.Invoke(ctx, Query_Settlements_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryClient) Review(ctx context.Context, in *QueryReviewRequest, opts ...grpc.CallOption) (*QueryReviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryReviewResponse)
+	err := c.cc.Invoke(ctx, Query_Review_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *queryClient) Params(ctx context.Context, in *QueryParamsRequest, opts ...grpc.CallOption) (*QueryParamsResponse, error) {
@@ -171,6 +231,11 @@ func (c *queryClient) ExecutionRecord(ctx context.Context, in *QueryExecutionRec
 // All implementations should embed UnimplementedQueryServer
 // for forward compatibility.
 type QueryServer interface {
+	AgentLease(context.Context, *QueryAgentLeaseRequest) (*QueryAgentLeaseResponse, error)
+	Authority(context.Context, *QueryAuthorityRequest) (*QueryAuthorityResponse, error)
+	OriginalTransfers(context.Context, *QueryOriginalTransfersRequest) (*QueryOriginalTransfersResponse, error)
+	Settlements(context.Context, *QuerySettlementsRequest) (*QuerySettlementsResponse, error)
+	Review(context.Context, *QueryReviewRequest) (*QueryReviewResponse, error)
 	Params(context.Context, *QueryParamsRequest) (*QueryParamsResponse, error)
 	Agent(context.Context, *QueryAgentRequest) (*QueryAgentResponse, error)
 	Agents(context.Context, *QueryAgentsRequest) (*QueryAgentsResponse, error)
@@ -191,6 +256,21 @@ type QueryServer interface {
 // pointer dereference when methods are called.
 type UnimplementedQueryServer struct{}
 
+func (UnimplementedQueryServer) AgentLease(context.Context, *QueryAgentLeaseRequest) (*QueryAgentLeaseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AgentLease not implemented")
+}
+func (UnimplementedQueryServer) Authority(context.Context, *QueryAuthorityRequest) (*QueryAuthorityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Authority not implemented")
+}
+func (UnimplementedQueryServer) OriginalTransfers(context.Context, *QueryOriginalTransfersRequest) (*QueryOriginalTransfersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method OriginalTransfers not implemented")
+}
+func (UnimplementedQueryServer) Settlements(context.Context, *QuerySettlementsRequest) (*QuerySettlementsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Settlements not implemented")
+}
+func (UnimplementedQueryServer) Review(context.Context, *QueryReviewRequest) (*QueryReviewResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Review not implemented")
+}
 func (UnimplementedQueryServer) Params(context.Context, *QueryParamsRequest) (*QueryParamsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Params not implemented")
 }
@@ -242,6 +322,96 @@ func RegisterQueryServer(s grpc.ServiceRegistrar, srv QueryServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&Query_ServiceDesc, srv)
+}
+
+func _Query_AgentLease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryAgentLeaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).AgentLease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_AgentLease_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).AgentLease(ctx, req.(*QueryAgentLeaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Query_Authority_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryAuthorityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).Authority(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_Authority_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).Authority(ctx, req.(*QueryAuthorityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Query_OriginalTransfers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryOriginalTransfersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).OriginalTransfers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_OriginalTransfers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).OriginalTransfers(ctx, req.(*QueryOriginalTransfersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Query_Settlements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QuerySettlementsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).Settlements(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_Settlements_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).Settlements(ctx, req.(*QuerySettlementsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Query_Review_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServer).Review(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Query_Review_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServer).Review(ctx, req.(*QueryReviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Query_Params_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -449,6 +619,26 @@ var Query_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "sanction.v1.Query",
 	HandlerType: (*QueryServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "AgentLease",
+			Handler:    _Query_AgentLease_Handler,
+		},
+		{
+			MethodName: "Authority",
+			Handler:    _Query_Authority_Handler,
+		},
+		{
+			MethodName: "OriginalTransfers",
+			Handler:    _Query_OriginalTransfers_Handler,
+		},
+		{
+			MethodName: "Settlements",
+			Handler:    _Query_Settlements_Handler,
+		},
+		{
+			MethodName: "Review",
+			Handler:    _Query_Review_Handler,
+		},
 		{
 			MethodName: "Params",
 			Handler:    _Query_Params_Handler,

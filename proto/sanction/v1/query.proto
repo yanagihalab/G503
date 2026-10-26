@@ -9,6 +9,21 @@ import "sanction/v1/types.proto";
 option go_package = "github.com/yanagihalab/G503/x/sanction/types";
 
 service Query {
+  rpc AgentLease(QueryAgentLeaseRequest) returns (QueryAgentLeaseResponse) {
+    option (google.api.http).get = "/sanction/v1/leases/{signer_address}";
+  }
+  rpc Authority(QueryAuthorityRequest) returns (QueryAuthorityResponse) {
+    option (google.api.http).get = "/sanction/v1/authority";
+  }
+  rpc OriginalTransfers(QueryOriginalTransfersRequest) returns (QueryOriginalTransfersResponse) {
+    option (google.api.http).get = "/sanction/v1/tx/{tx_hash}/transfers";
+  }
+  rpc Settlements(QuerySettlementsRequest) returns (QuerySettlementsResponse) {
+    option (google.api.http).get = "/sanction/v1/tx/{tx_hash}/settlements";
+  }
+  rpc Review(QueryReviewRequest) returns (QueryReviewResponse) {
+    option (google.api.http).get = "/sanction/v1/cases/{case_id}/review";
+  }
   rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
     option (google.api.http).get = "/sanction/v1/params";
   }
@@ -137,3 +152,14 @@ message QueryExecutionRecordRequest {
 message QueryExecutionRecordResponse {
   ExecutionRecord record = 1;
 }
+
+message QueryAuthorityRequest {}
+message QueryAuthorityResponse { string authority = 1; }
+message QueryOriginalTransfersRequest { string tx_hash = 1; }
+message QueryOriginalTransfersResponse { repeated OriginalTransfer transfers = 1; }
+message QuerySettlementsRequest { string tx_hash = 1; }
+message QuerySettlementsResponse { repeated SettlementRecord settlements = 1; }
+message QueryReviewRequest { string case_id = 1; }
+message QueryReviewResponse { ReviewRecord review = 1; }
+message QueryAgentLeaseRequest { string signer_address = 1; }
+message QueryAgentLeaseResponse { AgentLease lease = 1; }

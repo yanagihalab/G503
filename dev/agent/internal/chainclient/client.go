@@ -3,13 +3,17 @@ package chainclient
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/cometbft/cometbft/crypto/tmhash"
 )
 
 type Client struct {
@@ -31,6 +35,10 @@ type RPCError struct {
 	Data    string `json:"data,omitempty"`
 }
 
+func (e *RPCError) Error() string {
+	return fmt.Sprintf("rpc error %d: %s: %s", e.Code, e.Message, e.Data)
+}
+
 type BroadcastResult struct {
 	Code      uint32 `json:"code"`
 	Data      string `json:"data"`
@@ -48,10 +56,30 @@ func New(endpoint string, timeout time.Duration) *Client {
 	}
 }
 
+func (c *Client) CurrentHeight(ctx context.Context) (uint64, error) {
+	raw, err := c.rpc(ctx, "status", map[string]any{})
+	if err != nil {
+		return 0, err
+	}
+	var status struct {
+		SyncInfo struct {
+			LatestBlockHeight string `json:"latest_block_height"`
+		} `json:"sync_info"`
+	}
+	if err := json.Unmarshal(raw, &status); err != nil {
+		return 0, err
+	}
+	height, err := strconv.ParseUint(status.SyncInfo.LatestBlockHeight, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid chain height: %w", err)
+	}
+	return height, nil
+}
+
 func (c *Client) BroadcastTxSync(ctx context.Context, tx []byte) (BroadcastResult, error) {
 	var result BroadcastResult
 	raw, err := c.rpc(ctx, "broadcast_tx_sync", map[string]string{
-		"tx": "0x" + hex.EncodeToString(tx),
+		"tx": base64.StdEncoding.EncodeToString(tx),
 	})
 	if err != nil {
 		return result, err
@@ -59,8 +87,21 @@ func (c *Client) BroadcastTxSync(ctx context.Context, tx []byte) (BroadcastResul
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return result, err
 	}
+	var acknowledgement struct {
+		Code *uint32 `json:"code"`
+	}
+	if err := json.Unmarshal(raw, &acknowledgement); err != nil {
+		return result, err
+	}
+	if acknowledgement.Code == nil {
+		return result, fmt.Errorf("broadcast response is missing a result code")
+	}
 	if result.Code != 0 {
 		return result, fmt.Errorf("broadcast failed code=%d log=%s", result.Code, result.Log)
+	}
+	hash, err := hex.DecodeString(result.Hash)
+	if err != nil || !bytes.Equal(hash, tmhash.Sum(tx)) {
+		return result, fmt.Errorf("broadcast response hash does not match submitted tx")
 	}
 	return result, nil
 }
@@ -98,8 +139,14 @@ func (c *Client) rpc(ctx context.Context, method string, params any) (json.RawMe
 	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
 		return nil, err
 	}
+	if rpcResp.JSONRPC != "2.0" || rpcResp.ID != id {
+		return nil, fmt.Errorf("rpc response version or id does not match request")
+	}
 	if rpcResp.Error != nil {
-		return nil, fmt.Errorf("rpc error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
+		return nil, rpcResp.Error
+	}
+	if len(rpcResp.Result) == 0 || bytes.Equal(bytes.TrimSpace(rpcResp.Result), []byte("null")) {
+		return nil, fmt.Errorf("rpc response is missing a result")
 	}
 	return rpcResp.Result, nil
 }

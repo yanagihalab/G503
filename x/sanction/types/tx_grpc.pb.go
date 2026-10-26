@@ -25,7 +25,9 @@ const (
 	Msg_SubmitSanctionVote_FullMethodName = "/sanction.v1.Msg/SubmitSanctionVote"
 	Msg_ExecuteSanction_FullMethodName    = "/sanction.v1.Msg/ExecuteSanction"
 	Msg_RevokeSanction_FullMethodName     = "/sanction.v1.Msg/RevokeSanction"
+	Msg_ReviewSanction_FullMethodName     = "/sanction.v1.Msg/ReviewSanction"
 	Msg_UpdateParams_FullMethodName       = "/sanction.v1.Msg/UpdateParams"
+	Msg_ClaimAgentLease_FullMethodName    = "/sanction.v1.Msg/ClaimAgentLease"
 )
 
 // MsgClient is the client API for Msg service.
@@ -38,7 +40,9 @@ type MsgClient interface {
 	SubmitSanctionVote(ctx context.Context, in *MsgSubmitSanctionVote, opts ...grpc.CallOption) (*MsgSubmitSanctionVoteResponse, error)
 	ExecuteSanction(ctx context.Context, in *MsgExecuteSanction, opts ...grpc.CallOption) (*MsgExecuteSanctionResponse, error)
 	RevokeSanction(ctx context.Context, in *MsgRevokeSanction, opts ...grpc.CallOption) (*MsgRevokeSanctionResponse, error)
+	ReviewSanction(ctx context.Context, in *MsgReviewSanction, opts ...grpc.CallOption) (*MsgReviewSanctionResponse, error)
 	UpdateParams(ctx context.Context, in *MsgUpdateParams, opts ...grpc.CallOption) (*MsgUpdateParamsResponse, error)
+	ClaimAgentLease(ctx context.Context, in *MsgClaimAgentLease, opts ...grpc.CallOption) (*MsgClaimAgentLeaseResponse, error)
 }
 
 type msgClient struct {
@@ -109,10 +113,30 @@ func (c *msgClient) RevokeSanction(ctx context.Context, in *MsgRevokeSanction, o
 	return out, nil
 }
 
+func (c *msgClient) ReviewSanction(ctx context.Context, in *MsgReviewSanction, opts ...grpc.CallOption) (*MsgReviewSanctionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MsgReviewSanctionResponse)
+	err := c.cc.Invoke(ctx, Msg_ReviewSanction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *msgClient) UpdateParams(ctx context.Context, in *MsgUpdateParams, opts ...grpc.CallOption) (*MsgUpdateParamsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MsgUpdateParamsResponse)
 	err := c.cc.Invoke(ctx, Msg_UpdateParams_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *msgClient) ClaimAgentLease(ctx context.Context, in *MsgClaimAgentLease, opts ...grpc.CallOption) (*MsgClaimAgentLeaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MsgClaimAgentLeaseResponse)
+	err := c.cc.Invoke(ctx, Msg_ClaimAgentLease_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +153,9 @@ type MsgServer interface {
 	SubmitSanctionVote(context.Context, *MsgSubmitSanctionVote) (*MsgSubmitSanctionVoteResponse, error)
 	ExecuteSanction(context.Context, *MsgExecuteSanction) (*MsgExecuteSanctionResponse, error)
 	RevokeSanction(context.Context, *MsgRevokeSanction) (*MsgRevokeSanctionResponse, error)
+	ReviewSanction(context.Context, *MsgReviewSanction) (*MsgReviewSanctionResponse, error)
 	UpdateParams(context.Context, *MsgUpdateParams) (*MsgUpdateParamsResponse, error)
+	ClaimAgentLease(context.Context, *MsgClaimAgentLease) (*MsgClaimAgentLeaseResponse, error)
 }
 
 // UnimplementedMsgServer should be embedded to have
@@ -157,8 +183,14 @@ func (UnimplementedMsgServer) ExecuteSanction(context.Context, *MsgExecuteSancti
 func (UnimplementedMsgServer) RevokeSanction(context.Context, *MsgRevokeSanction) (*MsgRevokeSanctionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeSanction not implemented")
 }
+func (UnimplementedMsgServer) ReviewSanction(context.Context, *MsgReviewSanction) (*MsgReviewSanctionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReviewSanction not implemented")
+}
 func (UnimplementedMsgServer) UpdateParams(context.Context, *MsgUpdateParams) (*MsgUpdateParamsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateParams not implemented")
+}
+func (UnimplementedMsgServer) ClaimAgentLease(context.Context, *MsgClaimAgentLease) (*MsgClaimAgentLeaseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClaimAgentLease not implemented")
 }
 func (UnimplementedMsgServer) testEmbeddedByValue() {}
 
@@ -288,6 +320,24 @@ func _Msg_RevokeSanction_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Msg_ReviewSanction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgReviewSanction)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgServer).ReviewSanction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Msg_ReviewSanction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgServer).ReviewSanction(ctx, req.(*MsgReviewSanction))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Msg_UpdateParams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(MsgUpdateParams)
 	if err := dec(in); err != nil {
@@ -302,6 +352,24 @@ func _Msg_UpdateParams_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MsgServer).UpdateParams(ctx, req.(*MsgUpdateParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Msg_ClaimAgentLease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgClaimAgentLease)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgServer).ClaimAgentLease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Msg_ClaimAgentLease_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgServer).ClaimAgentLease(ctx, req.(*MsgClaimAgentLease))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -338,8 +406,16 @@ var Msg_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Msg_RevokeSanction_Handler,
 		},
 		{
+			MethodName: "ReviewSanction",
+			Handler:    _Msg_ReviewSanction_Handler,
+		},
+		{
 			MethodName: "UpdateParams",
 			Handler:    _Msg_UpdateParams_Handler,
+		},
+		{
+			MethodName: "ClaimAgentLease",
+			Handler:    _Msg_ClaimAgentLease_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
